@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import sys
 
@@ -11,5 +12,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from backend.app.main import app
 
 
+def get_host() -> str:
+    return os.getenv("HOST", "127.0.0.1")
+
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host=get_host(), port=8000)
