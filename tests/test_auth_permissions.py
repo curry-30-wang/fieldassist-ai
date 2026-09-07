@@ -145,6 +145,43 @@ def test_wrong_password_returns_safe_chinese_401(auth_client: TestClient) -> Non
     assert response.json() == {"success": False, "data": None, "message": "邮箱或密码错误"}
 
 
+def test_unknown_email_still_runs_pbkdf2(auth_client: TestClient, monkeypatch) -> None:
+    original_pbkdf2_hmac = hashlib.pbkdf2_hmac
+    calls = []
+
+    def recording_pbkdf2_hmac(hash_name, password, salt, iterations, dklen=None):
+        calls.append((hash_name, password, salt, iterations, dklen))
+        return original_pbkdf2_hmac(hash_name, password, salt, iterations, dklen)
+
+    monkeypatch.setattr(hashlib, "pbkdf2_hmac", recording_pbkdf2_hmac)
+
+    response = auth_client.post(
+        "/api/auth/login",
+        json={"email": "missing@fieldassist.local", "password": "unknown-user-password"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"success": False, "data": None, "message": "邮箱或密码错误"}
+    assert len(calls) == 1
+    assert calls[0][0] == "sha256"
+    assert len(calls[0][2]) == 16
+    assert calls[0][3:] == (600_000, 32)
+
+
+def test_malformed_login_does_not_echo_rejected_credentials(auth_client: TestClient) -> None:
+    leaked_password = "must-not-appear-in-validation-response"
+
+    response = auth_client.post("/api/auth/login", json={"password": leaked_password})
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "success": False,
+        "data": None,
+        "message": "请求参数格式错误",
+    }
+    assert leaked_password not in response.text
+
+
 def test_inactive_user_is_rejected_with_same_safe_401(auth_client: TestClient) -> None:
     response = auth_client.post(
         "/api/auth/login",
@@ -175,6 +212,23 @@ def test_logout_clears_session(auth_client: TestClient) -> None:
     assert logout.json() == {"success": True, "data": None, "message": "退出登录成功"}
     assert "session" not in auth_client.cookies
     assert profile.status_code == 401
+
+
+def test_public_placeholder_cannot_sign_a_session(monkeypatch) -> None:
+    from backend.app.config import get_settings
+    from backend.app.main import create_app
+
+    monkeypatch.setenv("SECRET_KEY", "replace-with-a-local-secret")
+    get_settings.cache_clear()
+    payload = base64.b64encode(json.dumps({"user_id": 1}).encode("utf-8"))
+    forged_cookie = TimestampSigner("replace-with-a-local-secret").sign(payload).decode("utf-8")
+
+    with TestClient(create_app()) as client:
+        client.cookies.set("session", forged_cookie)
+        response = client.post("/api/auth/logout")
+
+    assert "session=null" not in response.headers.get("set-cookie", "")
+    get_settings.cache_clear()
 
 
 def test_employee_is_rejected_by_admin_dependency() -> None:

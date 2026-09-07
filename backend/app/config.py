@@ -4,10 +4,13 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+PUBLIC_DEFAULT_SECRET_KEY = "replace-with-a-local-secret"
+
+
 class Settings(BaseSettings):
     app_name: str = "FieldAssist"
     environment: str = Field(default="development", validation_alias="APP_ENV")
-    secret_key: str = "replace-with-a-local-secret"
+    secret_key: str = PUBLIC_DEFAULT_SECRET_KEY
     database_url: str = "sqlite:///./database/fieldassist.db"
     ai_provider: str = "mock"
     observability_provider: str = "mock"

@@ -12,6 +12,10 @@ from backend.app.security import verify_password
 
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
+DUMMY_PASSWORD_HASH = (
+    "pbkdf2_sha256$600000$AAECAwQFBgcICQoLDA0ODw$"
+    "WMe-pudYgaB71PfxiMH1_wMkuB5fl536_ndRtyys8BY"
+)
 
 
 class LoginRequest(BaseModel):
@@ -43,7 +47,9 @@ def _user_response(user: User, message: str) -> UserResponse:
 def login(credentials: LoginRequest, request: Request, db: Annotated[Session, Depends(get_db)]) -> UserResponse:
     email = credentials.email.strip().lower()
     user = db.scalar(select(User).where(User.email == email))
-    if user is None or not verify_password(credentials.password, user.password_hash) or not user.is_active:
+    password_hash = user.password_hash if user is not None else DUMMY_PASSWORD_HASH
+    password_valid = verify_password(credentials.password, password_hash)
+    if user is None or not password_valid or not user.is_active:
         raise SafeHTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="邮箱或密码错误")
 
     request.session.clear()
