@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -28,6 +29,16 @@ class User(Base):
     conversations: Mapped[list[Conversation]] = relationship(back_populates="user")
     feedback_entries: Mapped[list[Feedback]] = relationship(back_populates="user")
     tickets: Mapped[list[Ticket]] = relationship(back_populates="creator")
+
+
+class UserProfile(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: str
+    display_name: str
+    role: str
+    is_active: bool
 
 
 class Conversation(Base):
