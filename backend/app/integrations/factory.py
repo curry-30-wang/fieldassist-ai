@@ -14,7 +14,7 @@ def create_chat_provider(db: Session, settings: Settings | None = None) -> ChatP
     if provider == "mock" or not configured.dify_api_key:
         return MockChatProvider(db)
     if provider != "dify":
-        raise ValueError("Unsupported AI provider")
+        raise ValueError("不支持的 AI 服务提供方")
 
     from backend.app.integrations.dify import DifyClient
 
@@ -28,7 +28,7 @@ def create_tracer(settings: Settings | None = None) -> Tracer:
     if provider == "mock" or not credentials_complete:
         return MockTracer()
     if provider != "langfuse":
-        raise ValueError("Unsupported observability provider")
+        raise ValueError("不支持的可观测性服务提供方")
 
     from backend.app.integrations.langfuse import LangfuseTracer
 

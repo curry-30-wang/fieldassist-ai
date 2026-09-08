@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from backend.app.integrations.contracts import ChatResult
-from backend.app.models import AiRun
+from backend.app.models import AiRun, Message
 
 
 def _optional_value(metadata: dict[str, Any], name: str, expected_type: type) -> Any:
@@ -17,6 +18,10 @@ def _optional_value(metadata: dict[str, Any], name: str, expected_type: type) ->
 
 def record_ai_run(db: Session, message_id: int, result: ChatResult) -> AiRun:
     metadata = result.raw_metadata
+    message = db.get(Message, message_id)
+    if message is None:
+        raise ValueError("关联消息不存在")
+    message.sources_json = json.dumps(result.sources, ensure_ascii=False, separators=(",", ":"))
     run = AiRun(
         message_id=message_id,
         provider=result.provider,

@@ -148,6 +148,26 @@ def test_factories_honor_explicit_mock_even_when_credentials_exist(db: Session) 
     assert "must-not-be-exposed" not in repr(tracer)
 
 
+def test_factories_reject_unsupported_providers_with_safe_chinese_messages(db: Session) -> None:
+    ai_settings = Settings(
+        AI_PROVIDER="unsupported",
+        DIFY_API_KEY="must-not-be-exposed",
+    )
+    observability_settings = Settings(
+        OBSERVABILITY_PROVIDER="unsupported",
+        LANGFUSE_PUBLIC_KEY="public",
+        LANGFUSE_SECRET_KEY="must-not-be-exposed",
+    )
+
+    with pytest.raises(ValueError, match="^不支持的 AI 服务提供方$") as ai_error:
+        create_chat_provider(db, ai_settings)
+    with pytest.raises(ValueError, match="^不支持的可观测性服务提供方$") as trace_error:
+        create_tracer(observability_settings)
+
+    assert "must-not-be-exposed" not in str(ai_error.value)
+    assert "must-not-be-exposed" not in str(trace_error.value)
+
+
 def test_ai_run_success_and_failure_are_persisted(db: Session) -> None:
     conversation = db.scalar(select(Conversation))
     message = Message(conversation_id=conversation.id, role="assistant", content="回答", provider="mock")
@@ -166,7 +186,11 @@ def test_ai_run_success_and_failure_are_persisted(db: Session) -> None:
     successful = record_ai_run(db, message.id, result)
     failed = record_ai_failure(db, message.id, "dify", "integration_timeout", 15000)
 
+    db.expire_all()
+    saved_message = db.get(Message, message.id)
     saved_runs = db.scalars(select(AiRun).order_by(AiRun.id)).all()
+    assert saved_message is not None
+    assert json.loads(saved_message.sources_json) == result.sources
     assert saved_runs == [successful, failed]
     assert successful.provider == "mock"
     assert successful.status == "success"
