@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.app.config import get_settings
@@ -77,10 +78,26 @@ def create_feedback(
     if feedback is None:
         feedback = Feedback(message_id=message.id, user_id=user.id, rating=int(rating), comment=comment)
         db.add(feedback)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            feedback = db.scalar(
+                select(Feedback).where(
+                    Feedback.message_id == message.id,
+                    Feedback.user_id == user.id,
+                )
+            )
+            if feedback is None:
+                raise
+            feedback.rating = int(rating)
+            feedback.comment = comment
+            created = False
+            db.commit()
     else:
         feedback.rating = int(rating)
         feedback.comment = comment
-    db.commit()
+        db.commit()
     db.refresh(feedback)
     _record_feedback_score(message, feedback)
     return feedback, created

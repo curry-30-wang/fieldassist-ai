@@ -7,11 +7,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.app.database import get_db
 from backend.app.models import AiRun, Base, Conversation, Feedback, Message, Ticket, User
 from backend.app.security import hash_password
+from backend.app.services.tickets import create_feedback
 
 
 DEMO_PASSWORD = "feedback-test-password"
@@ -139,6 +141,73 @@ def test_duplicate_feedback_updates_same_row(feedback_client) -> None:
         assert len(feedbacks) == 1
         assert feedbacks[0].rating == 0
         assert feedbacks[0].comment == "需要补充依据"
+
+
+def test_feedback_enforces_unique_message_user_pair(feedback_client) -> None:
+    client, testing_session = feedback_client
+    login(client)
+    message_id = create_assistant_message(client)
+
+    with testing_session() as db:
+        user = db.scalar(select(User).where(User.email == "employee@fieldassist.local"))
+        assert user is not None
+        db.add_all(
+            [
+                Feedback(message_id=message_id, user_id=user.id, rating=1),
+                Feedback(message_id=message_id, user_id=user.id, rating=0),
+            ]
+        )
+        with pytest.raises(IntegrityError):
+            db.commit()
+
+
+def test_concurrent_feedback_conflict_updates_winning_row(feedback_client, monkeypatch) -> None:
+    client, testing_session = feedback_client
+    login(client)
+    message_id = create_assistant_message(client)
+
+    with testing_session() as db:
+        user = db.scalar(select(User).where(User.email == "employee@fieldassist.local"))
+        assert user is not None
+        original_commit = db.commit
+        race_triggered = False
+
+        def commit_with_concurrent_insert() -> None:
+            nonlocal race_triggered
+            if not race_triggered:
+                race_triggered = True
+                with testing_session() as concurrent_db:
+                    concurrent_db.add(
+                        Feedback(
+                            message_id=message_id,
+                            user_id=user.id,
+                            rating=1,
+                            comment="并发先提交",
+                        )
+                    )
+                    concurrent_db.commit()
+                raise IntegrityError("duplicate feedback", {}, Exception("unique constraint"))
+            original_commit()
+
+        monkeypatch.setattr(db, "commit", commit_with_concurrent_insert)
+
+        feedback, created = create_feedback(
+            db,
+            user,
+            message_id,
+            False,
+            "后到请求覆盖",
+        )
+
+        assert created is False
+        assert feedback.rating == 0
+        assert feedback.comment == "后到请求覆盖"
+
+    with testing_session() as db:
+        feedbacks = db.scalars(select(Feedback)).all()
+        assert len(feedbacks) == 1
+        assert feedbacks[0].rating == 0
+        assert feedbacks[0].comment == "后到请求覆盖"
 
 
 def test_feedback_requires_assistant_message_and_owned_conversation(feedback_client) -> None:
