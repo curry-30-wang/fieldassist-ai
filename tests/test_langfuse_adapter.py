@@ -46,7 +46,7 @@ class FakeLangfuseClient:
         self.flush_calls = 0
         self.auth_calls = 0
 
-    def start_as_current_observation(self, **kwargs: Any) -> FakeObservation:
+    def start_observation(self, **kwargs: Any) -> FakeObservation:
         self.observation_calls.append(kwargs)
         observation = FakeObservation(
             f"observation-{len(self.observations) + 1}",
@@ -104,7 +104,7 @@ def test_start_trace_creates_v4_root_observation_and_local_context() -> None:
     context = tracer.start_trace("chat.request", "employee-1", "年假怎么申请？")
 
     assert context.trace_id
-    assert len(context.trace_id) == 32
+    assert context.trace_id == client.observations[0].trace_id
     assert context.provider == "langfuse"
     assert client.observation_calls == [
         {
@@ -147,6 +147,18 @@ def test_record_generation_uses_v4_generation_observation_and_flushes() -> None:
     assert client.flush_calls == 1
 
 
+def test_start_trace_uses_uuid_hex_when_root_observation_fails() -> None:
+    class FailingStartClient(FakeLangfuseClient):
+        def start_observation(self, **kwargs: Any) -> FakeObservation:
+            raise RuntimeError("private sdk response")
+
+    context = _tracer(client=FailingStartClient()).start_trace(
+        "chat.request", "employee-1", "问题"
+    )
+
+    assert len(context.trace_id) == 32
+
+
 def test_record_score_sanitizes_control_characters_and_bounds_comment() -> None:
     client = FakeLangfuseClient()
     tracer = _tracer(client=client)
@@ -186,7 +198,7 @@ def test_sdk_and_flush_failures_are_swallowed_and_logged_without_exception_text(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     class FailingClient(FakeLangfuseClient):
-        def start_as_current_observation(self, **kwargs: Any) -> FakeObservation:
+        def start_observation(self, **kwargs: Any) -> FakeObservation:
             raise RuntimeError("private sdk response with secret-test-key")
 
         def score(self, **kwargs: Any) -> None:

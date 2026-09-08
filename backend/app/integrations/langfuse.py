@@ -53,12 +53,15 @@ class LangfuseTracer:
         trace_id = self._new_trace_id()
         if self._client is not None:
             try:
-                self._client.start_as_current_observation(
+                observation = self._client.start_observation(
                     name=name,
                     as_type="span",
                     input=input_text,
                     metadata={"user_id": user_id},
                 )
+                remote_trace_id = getattr(observation, "trace_id", None)
+                if isinstance(remote_trace_id, str) and len(remote_trace_id) == 32:
+                    trace_id = remote_trace_id
             except Exception:
                 logger.warning("langfuse_trace_start_failed")
         return TraceContext(trace_id=trace_id, provider="langfuse")
@@ -75,7 +78,7 @@ class LangfuseTracer:
         if self._client is None:
             return
         try:
-            observation = self._client.start_as_current_observation(
+            observation = self._client.start_observation(
                 name="chat.generation",
                 as_type="generation",
                 input=input_text,
