@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
+from backend.app.api.admin import router as admin_router
 from backend.app.api.auth import router as auth_router
 from backend.app.api.chat import router as chat_router
 from backend.app.api.tickets import router as tickets_router
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     application.include_router(auth_router)
     application.include_router(chat_router)
     application.include_router(tickets_router)
+    application.include_router(admin_router)
     application.mount("/", StaticFiles(directory=FRONTEND_DIRECTORY, html=True), name="frontend")
     return application
 
