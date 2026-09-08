@@ -9,10 +9,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from backend.app.config import Settings
-from backend.app.integrations.contracts import ChatProvider
+from backend.app.integrations.contracts import (
+    ChatProvider,
+    IntegrationAuthError as ContractIntegrationAuthError,
+    IntegrationError as ContractIntegrationError,
+    IntegrationResponseError as ContractIntegrationResponseError,
+    IntegrationTimeoutError as ContractIntegrationTimeoutError,
+    IntegrationUnavailableError as ContractIntegrationUnavailableError,
+)
 from backend.app.integrations.dify import (
     DifyClient,
     IntegrationAuthError,
+    IntegrationError,
     IntegrationResponseError,
     IntegrationTimeoutError,
     IntegrationUnavailableError,
@@ -43,6 +51,16 @@ def _settings(**overrides: object) -> Settings:
     }
     values.update(overrides)
     return Settings(**values)
+
+
+def test_integration_errors_are_shared_contracts_and_dify_reexports_them() -> None:
+    assert IntegrationError is ContractIntegrationError
+    assert IntegrationAuthError is ContractIntegrationAuthError
+    assert IntegrationTimeoutError is ContractIntegrationTimeoutError
+    assert IntegrationUnavailableError is ContractIntegrationUnavailableError
+    assert IntegrationResponseError is ContractIntegrationResponseError
+    assert IntegrationAuthError().error_code == "integration_auth"
+    assert str(IntegrationAuthError()) == "AI 服务认证失败，请联系管理员检查配置"
 
 
 def test_chat_sends_blocking_request_and_extracts_answer_conversation_and_sources() -> None:
@@ -113,6 +131,23 @@ def test_chat_omits_conversation_id_when_starting_a_new_conversation() -> None:
     DifyClient(_settings(), transport=httpx.MockTransport(handler)).chat("问题", "employee-1", None)
 
     assert "conversation_id" not in captured_body
+
+
+@pytest.mark.parametrize("base_url", ["", "not-a-url"])
+def test_chat_maps_empty_or_malformed_base_url_to_safe_response_error(base_url: str) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise AssertionError("invalid base URL must not reach the transport")
+
+    client = DifyClient(
+        _settings(DIFY_BASE_URL=base_url),
+        transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(IntegrationResponseError) as captured:
+        client.chat("问题", "employee-1", None)
+
+    assert captured.value.error_code == "integration_response"
+    assert API_KEY not in str(captured.value)
 
 
 def test_chat_uses_configured_timeout() -> None:
@@ -211,6 +246,30 @@ def test_chat_maps_malformed_json_to_safe_response_error() -> None:
 
     assert captured.value.error_code == "integration_response"
     assert "not-json" not in str(captured.value)
+    assert API_KEY not in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    "response_payload",
+    [
+        {"answer": "回答", "metadata": {}},
+        {"answer": "回答", "conversation_id": None, "metadata": {}},
+        {"answer": "回答", "conversation_id": "", "metadata": {}},
+        {"answer": "回答", "conversation_id": 7, "metadata": {}},
+    ],
+)
+def test_chat_rejects_missing_null_empty_or_non_string_conversation_id(
+    response_payload: dict[str, object],
+) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=response_payload)
+
+    client = DifyClient(_settings(), transport=httpx.MockTransport(handler))
+
+    with pytest.raises(IntegrationResponseError) as captured:
+        client.chat("问题", "employee-1", None)
+
+    assert captured.value.error_code == "integration_response"
     assert API_KEY not in str(captured.value)
 
 

@@ -4,42 +4,23 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
+from urllib.parse import urlsplit
 
 import httpx
 
 from backend.app.config import Settings
-from backend.app.integrations.contracts import ChatResult, HealthResult
+from backend.app.integrations.contracts import (
+    ChatResult,
+    HealthResult,
+    IntegrationAuthError,
+    IntegrationError,
+    IntegrationResponseError,
+    IntegrationTimeoutError,
+    IntegrationUnavailableError,
+)
 
 
 _T = TypeVar("_T")
-
-
-class IntegrationError(RuntimeError):
-    error_code = "integration_error"
-    safe_message = "AI 服务调用失败，请稍后重试"
-
-    def __init__(self) -> None:
-        super().__init__(self.safe_message)
-
-
-class IntegrationAuthError(IntegrationError):
-    error_code = "integration_auth"
-    safe_message = "AI 服务认证失败，请联系管理员检查配置"
-
-
-class IntegrationTimeoutError(IntegrationError):
-    error_code = "integration_timeout"
-    safe_message = "AI 服务响应超时，请稍后重试"
-
-
-class IntegrationUnavailableError(IntegrationError):
-    error_code = "integration_unavailable"
-    safe_message = "AI 服务暂时不可用，请稍后重试"
-
-
-class IntegrationResponseError(IntegrationError):
-    error_code = "integration_response"
-    safe_message = "AI 服务返回了无法解析的响应，请稍后重试"
 
 
 def _run_synchronously(operation: Callable[[], Awaitable[_T]]) -> _T:
@@ -54,6 +35,9 @@ def _run_synchronously(operation: Callable[[], Awaitable[_T]]) -> _T:
 
 def _api_base_url(configured_base_url: str) -> str:
     base_url = configured_base_url.strip().rstrip("/")
+    parsed = urlsplit(base_url)
+    if parsed.scheme.casefold() not in {"http", "https"} or not parsed.netloc:
+        raise IntegrationResponseError
     if base_url.casefold().endswith("/v1"):
         return base_url
     return f"{base_url}/v1"
@@ -83,12 +67,15 @@ class DifyClient:
         self._transport = transport
 
     def _client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(
-            base_url=f"{_api_base_url(self._base_url)}/",
-            headers={"Authorization": f"Bearer {self._api_key}"},
-            timeout=self._timeout_seconds,
-            transport=self._transport,
-        )
+        try:
+            return httpx.AsyncClient(
+                base_url=f"{_api_base_url(self._base_url)}/",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                timeout=self._timeout_seconds,
+                transport=self._transport,
+            )
+        except (TypeError, ValueError):
+            raise IntegrationResponseError from None
 
     def chat(
         self,
@@ -136,7 +123,7 @@ class DifyClient:
         metadata = payload.get("metadata", {})
         if not isinstance(answer, str):
             raise IntegrationResponseError
-        if returned_conversation_id is not None and not isinstance(returned_conversation_id, str):
+        if not isinstance(returned_conversation_id, str) or not returned_conversation_id.strip():
             raise IntegrationResponseError
         if not isinstance(metadata, dict):
             raise IntegrationResponseError

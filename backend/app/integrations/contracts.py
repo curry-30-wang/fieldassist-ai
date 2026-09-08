@@ -6,6 +6,34 @@ from types import TracebackType
 from typing import Any, Protocol, runtime_checkable
 
 
+class IntegrationError(RuntimeError):
+    error_code = "integration_error"
+    safe_message = "AI 服务调用失败，请稍后重试"
+
+    def __init__(self) -> None:
+        super().__init__(self.safe_message)
+
+
+class IntegrationAuthError(IntegrationError):
+    error_code = "integration_auth"
+    safe_message = "AI 服务认证失败，请联系管理员检查配置"
+
+
+class IntegrationTimeoutError(IntegrationError):
+    error_code = "integration_timeout"
+    safe_message = "AI 服务响应超时，请稍后重试"
+
+
+class IntegrationUnavailableError(IntegrationError):
+    error_code = "integration_unavailable"
+    safe_message = "AI 服务暂时不可用，请稍后重试"
+
+
+class IntegrationResponseError(IntegrationError):
+    error_code = "integration_response"
+    safe_message = "AI 服务返回了无法解析的响应，请稍后重试"
+
+
 @dataclass
 class ChatResult:
     answer: str
