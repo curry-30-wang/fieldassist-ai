@@ -18,7 +18,7 @@ def create_chat_provider(db: Session, settings: Settings | None = None) -> ChatP
 
     from backend.app.integrations.dify import DifyClient
 
-    return DifyClient(configured)
+    return DifyClient(settings=configured)
 
 
 def create_tracer(settings: Settings | None = None) -> Tracer:
