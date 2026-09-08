@@ -188,7 +188,10 @@ def test_record_generation_uses_v4_generation_observation_and_flushes() -> None:
             "request_id": "local-request",
             "latency_ms": 123,
         },
-        "trace_context": {"trace_id": context.trace_id},
+        "trace_context": {
+            "trace_id": context.trace_id,
+            "parent_span_id": "observation-1",
+        },
     }
     assert client.observations[1].ended is True
     assert client.observations[0].ended is True

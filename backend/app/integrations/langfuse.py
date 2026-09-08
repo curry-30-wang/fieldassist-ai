@@ -151,6 +151,11 @@ class LangfuseTracer:
         generation: Any | None = None
         try:
             if self._client is not None:
+                trace_context = {"trace_id": context.trace_id}
+                if isinstance(context, _LangfuseTraceContext):
+                    root_observation_id = getattr(context.root_observation, "id", None)
+                    if isinstance(root_observation_id, str) and root_observation_id:
+                        trace_context["parent_span_id"] = root_observation_id
                 generation = self._client.start_observation(
                     name="chat.generation",
                     as_type="generation",
@@ -161,7 +166,7 @@ class LangfuseTracer:
                         **self._safe_metadata(metadata),
                         "latency_ms": latency_ms,
                     },
-                    trace_context={"trace_id": context.trace_id},
+                    trace_context=trace_context,
                 )
                 generation.end()
         except Exception:
