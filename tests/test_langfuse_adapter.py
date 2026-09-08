@@ -11,9 +11,13 @@ from backend.app.integrations.factory import create_tracer
 from backend.app.integrations.mock_trace import MockTracer
 
 try:
-    from backend.app.integrations.langfuse import LangfuseTracer
+    from backend.app.integrations.langfuse import (
+        LangfuseTracer,
+        _LangfuseTraceContext,
+    )
 except ModuleNotFoundError:
     LangfuseTracer = None  # type: ignore[assignment,misc]
+    _LangfuseTraceContext = None  # type: ignore[assignment,misc]
 
 
 class FakeObservation:
@@ -22,6 +26,7 @@ class FakeObservation:
         self.trace_id = trace_id
         self.update_calls: list[dict[str, Any]] = []
         self.ended = False
+        self.end_calls = 0
 
     def __enter__(self) -> FakeObservation:
         return self
@@ -34,6 +39,7 @@ class FakeObservation:
         return self
 
     def end(self) -> FakeObservation:
+        self.end_calls += 1
         self.ended = True
         return self
 
@@ -130,8 +136,9 @@ def test_start_trace_creates_v4_root_observation_and_local_context() -> None:
     assert context.trace_id
     assert context.trace_id == client.observations[0].trace_id
     assert context.provider == "langfuse"
-    assert client.observations[0].ended is True
-    assert client.flush_calls == 1
+    assert isinstance(context, _LangfuseTraceContext)
+    assert client.observations[0].ended is False
+    assert client.flush_calls == 0
     assert client.observation_calls == [
         {
             "name": "chat.request",
@@ -140,6 +147,20 @@ def test_start_trace_creates_v4_root_observation_and_local_context() -> None:
             "metadata": {"user_id": "employee-1"},
         }
     ]
+
+
+def test_trace_context_exit_ends_root_and_flushes_idempotently() -> None:
+    client = FakeLangfuseClient()
+    tracer = _tracer(client=client)
+
+    with tracer.start_trace("chat.request", "employee-1", "问题") as context:
+        assert client.observations[0].ended is False
+
+    context.__exit__(None, None, None)
+
+    assert client.observations[0].ended is True
+    assert client.observations[0].end_calls == 1
+    assert client.flush_calls == 1
 
 
 def test_record_generation_uses_v4_generation_observation_and_flushes() -> None:
@@ -170,15 +191,38 @@ def test_record_generation_uses_v4_generation_observation_and_flushes() -> None:
         "trace_context": {"trace_id": context.trace_id},
     }
     assert client.observations[1].ended is True
-    assert client.flush_calls == 2
+    assert client.observations[0].ended is True
+    assert client.observations[0].end_calls == 1
+    assert client.flush_calls == 1
+
+
+def test_record_generation_ends_root_when_generation_observation_fails() -> None:
+    class FailingGenerationClient(FakeLangfuseClient):
+        def start_observation(self, **kwargs: Any) -> FakeObservation:
+            if self.observations:
+                raise RuntimeError("private generation response")
+            return super().start_observation(**kwargs)
+
+    client = FailingGenerationClient()
+    tracer = _tracer(client=client)
+    context = tracer.start_trace("chat.request", "employee-1", "问题")
+
+    tracer.record_generation(context, "dify-model", "问题", "回答", 123, {})
+
+    assert client.observations[0].ended is True
+    assert client.observations[0].end_calls == 1
+    assert client.flush_calls == 1
 
 
 def test_trace_payloads_are_sanitized_and_bounded_before_remote_send() -> None:
     client = FakeLangfuseClient()
     tracer = _tracer(client=client)
     sensitive = (
-        "alice@example.com 13800138000 password=pass-123 token=tok-456 "
-        "secret=secret-789 api_key=key-000\n"
+        "alice@example.com 13800138000 "
+        'DIFY_API_KEY = "dify-secret-123" '
+        "api-key:'api-secret-456' PASSWORD = pass-789 "
+        'ToKeN "token-secret-012" secret : \'secret-value-345\' '
+        "Authorization: Bearer bearer-secret-678\n"
     )
 
     context = tracer.start_trace("chat.request", "employee-1", sensitive * 100)
@@ -191,24 +235,30 @@ def test_trace_payloads_are_sanitized_and_bounded_before_remote_send() -> None:
         {
             "provider": "dify",
             "request_id": "alice@example.com",
-            "password": "pass-123",
-            "diagnostic": "token=tok-456",
+            "diagnostic": sensitive * 100,
         },
     )
+    tracer.record_score("trace-123", "helpful", 1.0, sensitive * 100)
 
     root_input = client.observation_calls[0]["input"]
     generation_call = client.observation_calls[1]
     assert len(root_input) <= 2000
     assert len(generation_call["input"]) <= 2000
     assert len(generation_call["output"]) <= 2000
-    for payload in (root_input, generation_call["input"], generation_call["output"]):
+    sent_comment = client.create_score_calls[0]["comment"]
+    for payload in (root_input, generation_call["input"], generation_call["output"], sent_comment):
         assert "alice@example.com" not in payload
         assert "13800138000" not in payload
-        assert "pass-123" not in payload
-        assert "tok-456" not in payload
-        assert "secret-789" not in payload
-        assert "key-000" not in payload
+        assert "dify-secret-123" not in payload
+        assert "api-secret-456" not in payload
+        assert "pass-789" not in payload
+        assert "token-secret-012" not in payload
+        assert "secret-value-345" not in payload
+        assert "bearer-secret-678" not in payload
         assert "\n" not in payload
+    assert len(sent_comment) <= 500
+    assert "ordinary space" not in root_input
+    assert LangfuseTracer._safe_text("ordinary space") == "ordinary space"
     assert generation_call["metadata"] == {
         "provider": "dify",
         "request_id": "[REDACTED_EMAIL]",

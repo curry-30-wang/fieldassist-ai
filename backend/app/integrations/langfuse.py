@@ -4,6 +4,7 @@ import logging
 import re
 import unicodedata
 import uuid
+from types import TracebackType
 from typing import Any, Callable
 
 from backend.app.config import Settings
@@ -11,6 +12,44 @@ from backend.app.integrations.contracts import HealthResult, TraceContext
 
 
 logger = logging.getLogger(__name__)
+
+
+class _LangfuseTraceContext:
+    def __init__(
+        self,
+        trace_id: str,
+        provider: str,
+        root_observation: Any | None,
+        tracer: LangfuseTracer,
+    ) -> None:
+        self.trace_id = trace_id
+        self.provider = provider
+        self.root_observation = root_observation
+        self.tracer = tracer
+        self._closed = False
+
+    def __enter__(self) -> _LangfuseTraceContext:
+        return self
+
+    def __exit__(
+        self,
+        _exception_type: type[BaseException] | None,
+        _exception: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
+        self.close()
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            if self.root_observation is not None:
+                self.root_observation.end()
+        except Exception:
+            logger.warning("langfuse_trace_end_failed")
+        finally:
+            self.tracer._flush()
 
 
 class LangfuseTracer:
@@ -24,8 +63,21 @@ class LangfuseTracer:
     )
     _PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?86[- ]?)?1[3-9]\d{9}(?!\d)")
     _SECRET_PATTERN = re.compile(
-        r"(?<![\w-])(?:password|token|secret|api[_-]?key)\s*[:=]\s*[^\s,;&]+",
-        re.IGNORECASE,
+        r"""
+        (?<![\w-])
+        (?:
+            authorization\s*(?::|=)?\s*bearer\s+
+            |
+            (?:(?:dify[\s_-]*)?api[\s_-]*key|password|token|secret)
+            (?:\s*[:=]\s*|\s+)
+        )
+        (?:
+            "(?:\\.|[^"])*"
+            | '(?:\\.|[^'])*'
+            | [^\s,;&]+
+        )
+        """,
+        re.IGNORECASE | re.VERBOSE,
     )
 
     def __init__(
@@ -65,23 +117,27 @@ class LangfuseTracer:
 
     def start_trace(self, name: str, user_id: str, input_text: str) -> TraceContext:
         trace_id = self._new_trace_id()
+        root_observation: Any | None = None
         if self._client is not None:
             try:
-                observation = self._client.start_observation(
+                root_observation = self._client.start_observation(
                     name=name,
                     as_type="span",
                     input=self._safe_text(input_text),
                     metadata={"user_id": self._safe_text(user_id)},
                 )
-                remote_trace_id = getattr(observation, "trace_id", None)
+                remote_trace_id = getattr(root_observation, "trace_id", None)
                 if isinstance(remote_trace_id, str) and len(remote_trace_id) == 32:
                     trace_id = remote_trace_id
-                observation.end()
             except Exception:
                 logger.warning("langfuse_trace_start_failed")
-            finally:
-                self._flush()
-        return TraceContext(trace_id=trace_id, provider="langfuse")
+                root_observation = None
+        return _LangfuseTraceContext(
+            trace_id,
+            "langfuse",
+            root_observation,
+            self,
+        )
 
     def record_generation(
         self,
@@ -92,26 +148,34 @@ class LangfuseTracer:
         latency_ms: int,
         metadata: dict[str, Any],
     ) -> None:
-        if self._client is None:
-            return
+        generation: Any | None = None
         try:
-            observation = self._client.start_observation(
-                name="chat.generation",
-                as_type="generation",
-                input=self._safe_text(input_text),
-                output=self._safe_text(output_text),
-                model=model,
-                metadata={
-                    **self._safe_metadata(metadata),
-                    "latency_ms": latency_ms,
-                },
-                trace_context={"trace_id": context.trace_id},
-            )
-            observation.end()
+            if self._client is not None:
+                generation = self._client.start_observation(
+                    name="chat.generation",
+                    as_type="generation",
+                    input=self._safe_text(input_text),
+                    output=self._safe_text(output_text),
+                    model=model,
+                    metadata={
+                        **self._safe_metadata(metadata),
+                        "latency_ms": latency_ms,
+                    },
+                    trace_context={"trace_id": context.trace_id},
+                )
+                generation.end()
         except Exception:
             logger.warning("langfuse_generation_failed")
         finally:
-            self._flush()
+            if not self._finish_context(context):
+                self._flush()
+
+    @staticmethod
+    def _finish_context(context: TraceContext) -> bool:
+        if isinstance(context, _LangfuseTraceContext):
+            context.close()
+            return True
+        return False
 
     def _flush(self) -> None:
         if self._client is None:
@@ -130,7 +194,7 @@ class LangfuseTracer:
         text = cls._EMAIL_PATTERN.sub("[REDACTED_EMAIL]", text)
         text = cls._PHONE_PATTERN.sub("[REDACTED_PHONE]", text)
         text = cls._SECRET_PATTERN.sub("[REDACTED_SECRET]", text)
-        return text[: limit or cls._SAFE_TEXT_LIMIT]
+        return text[: cls._SAFE_TEXT_LIMIT if limit is None else limit]
 
     @classmethod
     def _safe_metadata(cls, metadata: dict[str, Any]) -> dict[str, Any]:
