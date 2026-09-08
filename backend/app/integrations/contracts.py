@@ -107,3 +107,22 @@ class Tracer(Protocol):
     ) -> None: ...
 
     def health_check(self) -> HealthResult: ...
+
+
+@runtime_checkable
+class AutomationClient(Protocol):
+    def create_external_ticket(self, ticket: Any) -> Any | None: ...
+
+    def notify_ticket(self, ticket: Any) -> Any | None: ...
+
+
+class NoopAutomationClient:
+    """Local automation boundary; deliberately performs no network calls."""
+
+    def create_external_ticket(self, ticket: Any) -> None:
+        del ticket
+        return None
+
+    def notify_ticket(self, ticket: Any) -> None:
+        del ticket
+        return None
