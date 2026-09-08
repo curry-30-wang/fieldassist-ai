@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import unicodedata
 from typing import Any
 
 import pytest
@@ -42,7 +43,7 @@ class FakeLangfuseClient:
         self.auth_result = auth_result
         self.observation_calls: list[dict[str, Any]] = []
         self.observations: list[FakeObservation] = []
-        self.score_calls: list[dict[str, Any]] = []
+        self.create_score_calls: list[dict[str, Any]] = []
         self.flush_calls = 0
         self.auth_calls = 0
 
@@ -55,8 +56,8 @@ class FakeLangfuseClient:
         self.observations.append(observation)
         return observation
 
-    def score(self, **kwargs: Any) -> None:
-        self.score_calls.append(kwargs)
+    def create_score(self, **kwargs: Any) -> None:
+        self.create_score_calls.append(kwargs)
 
     def flush(self) -> None:
         self.flush_calls += 1
@@ -97,6 +98,29 @@ def test_factory_constructs_langfuse_tracer_for_configured_provider() -> None:
     assert "secret-test-key" not in repr(tracer)
 
 
+def test_default_client_factory_passes_v4_endpoint_and_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import langfuse
+
+    captured: dict[str, Any] = {}
+
+    class CapturingLangfuse:
+        def __init__(self, **kwargs: Any) -> None:
+            captured.update(kwargs)
+
+    monkeypatch.setattr(langfuse, "Langfuse", CapturingLangfuse)
+
+    LangfuseTracer._default_client_factory(_settings())
+
+    assert captured == {
+        "public_key": "public-test-key",
+        "secret_key": "secret-test-key",
+        "base_url": "https://langfuse.example",
+        "timeout": 4,
+    }
+
+
 def test_start_trace_creates_v4_root_observation_and_local_context() -> None:
     client = FakeLangfuseClient()
     tracer = _tracer(client=client)
@@ -106,6 +130,8 @@ def test_start_trace_creates_v4_root_observation_and_local_context() -> None:
     assert context.trace_id
     assert context.trace_id == client.observations[0].trace_id
     assert context.provider == "langfuse"
+    assert client.observations[0].ended is True
+    assert client.flush_calls == 1
     assert client.observation_calls == [
         {
             "name": "chat.request",
@@ -144,7 +170,50 @@ def test_record_generation_uses_v4_generation_observation_and_flushes() -> None:
         "trace_context": {"trace_id": context.trace_id},
     }
     assert client.observations[1].ended is True
-    assert client.flush_calls == 1
+    assert client.flush_calls == 2
+
+
+def test_trace_payloads_are_sanitized_and_bounded_before_remote_send() -> None:
+    client = FakeLangfuseClient()
+    tracer = _tracer(client=client)
+    sensitive = (
+        "alice@example.com 13800138000 password=pass-123 token=tok-456 "
+        "secret=secret-789 api_key=key-000\n"
+    )
+
+    context = tracer.start_trace("chat.request", "employee-1", sensitive * 100)
+    tracer.record_generation(
+        context,
+        "dify-model",
+        sensitive,
+        sensitive,
+        123,
+        {
+            "provider": "dify",
+            "request_id": "alice@example.com",
+            "password": "pass-123",
+            "diagnostic": "token=tok-456",
+        },
+    )
+
+    root_input = client.observation_calls[0]["input"]
+    generation_call = client.observation_calls[1]
+    assert len(root_input) <= 2000
+    assert len(generation_call["input"]) <= 2000
+    assert len(generation_call["output"]) <= 2000
+    for payload in (root_input, generation_call["input"], generation_call["output"]):
+        assert "alice@example.com" not in payload
+        assert "13800138000" not in payload
+        assert "pass-123" not in payload
+        assert "tok-456" not in payload
+        assert "secret-789" not in payload
+        assert "key-000" not in payload
+        assert "\n" not in payload
+    assert generation_call["metadata"] == {
+        "provider": "dify",
+        "request_id": "[REDACTED_EMAIL]",
+        "latency_ms": 123,
+    }
 
 
 def test_start_trace_uses_uuid_hex_when_root_observation_fails() -> None:
@@ -162,19 +231,24 @@ def test_start_trace_uses_uuid_hex_when_root_observation_fails() -> None:
 def test_record_score_sanitizes_control_characters_and_bounds_comment() -> None:
     client = FakeLangfuseClient()
     tracer = _tracer(client=client)
-    comment = "有帮助\r\n\t\x00" + ("很" * 600)
+    comment = "有 帮助\r\n\t\x00" + (" 很" * 300)
 
     tracer.record_score("trace-123", "helpful", 1.0, comment)
 
-    sent_comment = client.score_calls[0]["comment"]
-    assert sent_comment.startswith("有帮助很")
+    sent_comment = client.create_score_calls[0]["comment"]
+    assert sent_comment.startswith("有 帮助")
     assert len(sent_comment) == 500
-    assert all(not character.isspace() for character in sent_comment)
-    assert client.score_calls[0] == {
+    assert "有 帮助" in sent_comment
+    assert all(
+        not unicodedata.category(character).startswith("C")
+        for character in sent_comment
+    )
+    assert client.create_score_calls[0] == {
         "name": "helpful",
         "value": 1.0,
         "trace_id": "trace-123",
         "comment": sent_comment,
+        "data_type": "NUMERIC",
     }
     assert client.flush_calls == 1
 
@@ -201,7 +275,7 @@ def test_sdk_and_flush_failures_are_swallowed_and_logged_without_exception_text(
         def start_observation(self, **kwargs: Any) -> FakeObservation:
             raise RuntimeError("private sdk response with secret-test-key")
 
-        def score(self, **kwargs: Any) -> None:
+        def create_score(self, **kwargs: Any) -> None:
             raise RuntimeError("private score response with secret-test-key")
 
         def flush(self) -> None:
