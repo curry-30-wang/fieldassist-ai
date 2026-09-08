@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from backend.app.api.auth import router as auth_router
+from backend.app.api.chat import router as chat_router
 from backend.app.config import PUBLIC_DEFAULT_SECRET_KEY, get_settings
 from backend.app.dependencies import SafeHTTPException
 
@@ -63,6 +64,7 @@ def create_app() -> FastAPI:
         }
 
     application.include_router(auth_router)
+    application.include_router(chat_router)
     application.mount("/", StaticFiles(directory=FRONTEND_DIRECTORY, html=True), name="frontend")
     return application
 
