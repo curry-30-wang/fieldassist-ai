@@ -1,0 +1,11 @@
+.worktrees/
+.superpowers/sdd/
+__pycache__/
+.pytest_cache/
+.venv/
+*.py[cod]
+.env
+.coverage
+htmlcov/
+database/*.db
+
