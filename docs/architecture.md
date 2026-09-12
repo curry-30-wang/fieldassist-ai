@@ -1,5 +1,7 @@
 # FieldAssist 架构说明
 
+可直接在 GitHub README 中查看渲染后的[架构图](../README.md#架构图)；Mermaid 源文件位于 [`architecture.mmd`](architecture.mmd)。
+
 ## 一句话
 
 FieldAssist 是一个同源的 Vue 3 + FastAPI 企业知识助手。浏览器只访问自己的 `/api`，后端负责会话、权限、业务数据和外部服务适配，SQLite 保存本地业务记录。

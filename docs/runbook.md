@@ -20,6 +20,13 @@ docker compose up --build
 
 浏览器访问 `http://127.0.0.1:8000/`，存活检查访问 `http://127.0.0.1:8000/api/health`。
 
+## 作品集演示路径
+
+1. 使用 `employee@fieldassist.local` 登录，打开“知识问答”，查看带引用来源的 Mock 回答，并点击“有帮助”或“转为工单”。
+2. 退出后使用 `admin@fieldassist.local` 登录，在“运营概览”查看指标和服务连接状态。
+3. 打开“质量评测”，点击“运行评测”，查看固定问题集的逐题结果。
+4. 演示结束后使用 `Ctrl+C` 停止后端服务；不要把演示密码、Cookie 或本地数据库文件上传到公开仓库。
+
 ## 配置检查
 
 - 不填 Dify 和 Langfuse 配置时，确认 `AI_PROVIDER=mock`、`OBSERVABILITY_PROVIDER=mock`，应用应该可以离线登录和问答。
