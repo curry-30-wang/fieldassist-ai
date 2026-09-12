@@ -54,11 +54,13 @@ def test_handoff_docs_cover_integrations_and_safe_secret_boundary() -> None:
     assert "webhook" in extension.lower()
 
 
-def test_resume_material_marks_measured_values_as_placeholders() -> None:
+def test_resume_material_uses_evidence_backed_values() -> None:
     resume = read_project_file("docs/resume.md")
 
-    assert "[待替换" in resume
-    assert "实测" in resume
+    assert "[待替换" not in resume
+    assert "111" in resume
+    assert "5/5" in resume
+    assert "Mock" in resume
     assert "中文" in resume
     assert "English" in resume
 

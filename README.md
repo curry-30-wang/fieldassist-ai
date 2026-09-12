@@ -4,6 +4,65 @@ FieldAssist 是一个面向企业内部的知识助手和工单工作台。员�
 
 第一版重点是可交付的业务应用层：FieldAssist 自己负责用户、会话、权限、反馈、工单和本地指标；Dify 负责真实 AI 对话；Langfuse 负责可观测性；没有外部凭据时，Mock 模式提供确定性、离线、可测试的回答。
 
+## 项目定位
+
+FieldAssist 面向企业内部知识问答和问题闭环处理，把“查知识、看依据、评价回答、转成工单、管理员复盘”放在同一个工作台中。项目重点展示 AI 应用交付中的几个实际问题：外部模型服务如何替换、回答如何留下来源、调用如何观测、失败如何降级，以及业务权限和工单流程如何落地。
+
+## 主要能力
+
+- 员工端：登录、知识问答、引用来源、回答反馈、会话历史和转工单。
+- 管理端：运营指标、集成健康检查、知识文档、工单管理和固定问题集评测。
+- AI 集成：Dify Chat API 真实适配器和无需密钥的确定性 Mock 适配器。
+- 可观测性：Langfuse 追踪适配器和本地 `ai_runs` 调用记录，外部追踪失败不阻断业务回答。
+- 交付方式：Vue 3 浏览器构建版静态页面、FastAPI 同源接口、SQLite 本地数据和 Docker Compose 配置。
+
+## 架构图
+
+```mermaid
+flowchart LR
+    U[员工或管理员浏览器] --> V[Vue 3 静态页面]
+    V -->|同源 fetch /api| A[FastAPI API 路由]
+    A --> S[业务服务层]
+    S --> DB[(SQLite / SQLAlchemy)]
+    S --> C{ChatProvider}
+    C --> M[Mock AI<br/>离线演示与测试]
+    C --> D[Dify Chat API<br/>真实对话]
+    S --> T{Tracer}
+    T --> MT[Mock Tracer]
+    T --> L[Langfuse<br/>调用追踪]
+    S --> W[反馈与工单闭环]
+    W --> DB
+```
+
+完整的组件边界和降级策略见[架构说明](docs/architecture.md)，可编辑的 Mermaid 源文件见 [`docs/architecture.mmd`](docs/architecture.mmd)。
+
+## 页面截图
+
+以下截图均来自本地 Mock 模式，使用项目自带演示数据，不代表线上生产数据。
+
+| 员工端知识问答 | 管理员运营概览 |
+| --- | --- |
+| ![员工端知识问答](docs/assets/fieldassist-employee-chat.png) | ![管理员运营概览](docs/assets/fieldassist-admin-dashboard.png) |
+
+| 管理员质量评测 |
+| --- |
+| ![管理员质量评测](docs/assets/fieldassist-admin-evaluation.png) |
+
+## 验证结果
+
+- `pytest tests -q`：111 项测试通过。
+- `python -m compileall backend tests`：Python 语法检查通过。
+- `node --check frontend/app.js`：前端 JavaScript 语法检查通过。
+- Mock 冒烟流程覆盖健康检查、登录、问答、反馈、工单、管理员概览和质量评测。
+
+这些结果用于本地交付验证；项目没有把 Mock 数据、论文中的预期指标或未部署的外部服务写成生产成果。
+
+## 相关作品：办公室数据与统计工具
+
+在驻马店市公路工程开发有限公司担任办公室文职期间，我根据日常表格制作和信息统计需求完成了一套办公辅助软件，用于集中处理重复的表格整理和信息汇总工作。这个作品体现了从实际工作问题出发、梳理需求并交付可用工具的能力。
+
+安装包体积较大，未放入 Git 历史，而是作为 GitHub Release 资产发布；项目说明、文件校验值和下载入口见 [`portfolio/README.md`](portfolio/README.md)。
+
 ## 3 分钟启动 Mock 模式
 
 需要 Python 3.10+。在项目根目录执行：
@@ -74,4 +133,5 @@ docs/              架构、接口、演示、运行手册和简历素材
 - [3–5 分钟演示脚本](docs/demo-script.md)
 - [运行手册](docs/runbook.md)
 - [简历素材](docs/resume.md)
+- [办公室数据统计工具](portfolio/README.md)
 - [n8n 后续扩展](docs/n8n-extension.md)
