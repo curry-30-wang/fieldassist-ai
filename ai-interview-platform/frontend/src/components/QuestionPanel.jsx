@@ -8,6 +8,7 @@ export default function QuestionPanel({ questions, onSubmit, onFinish, loading }
   const [panelError, setPanelError] = useState("");
   const question = questionList[index];
   const questionIsUsable = question !== null && typeof question === "object" && !Array.isArray(question);
+  const questionIsSubmittable = questionIsUsable && Boolean(question.id);
 
   if (!questionList.length) {
     return (
@@ -20,7 +21,7 @@ export default function QuestionPanel({ questions, onSubmit, onFinish, loading }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    if (!questionIsUsable || !question.id) {
+    if (!questionIsSubmittable) {
       setPanelError("当前题目缺少有效编号，暂时无法提交答案。");
       return;
     }
@@ -39,7 +40,7 @@ export default function QuestionPanel({ questions, onSubmit, onFinish, loading }
   return (
     <section className="card question-card">
       <div className="progress" aria-live="polite">第 {index + 1} 题 / 共 {questionList.length} 题</div>
-      {!questionIsUsable ? (
+      {!questionIsSubmittable ? (
         <>
           <h2>题目数据不可用</h2>
           <p className="error" role="alert">题目数据不可用，无法提交答案。</p>

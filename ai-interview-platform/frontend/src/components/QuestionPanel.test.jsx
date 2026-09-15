@@ -1,9 +1,12 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup } from "@testing-library/react";
 
 import QuestionPanel from "./QuestionPanel";
 
 describe("QuestionPanel", () => {
+  afterEach(cleanup);
+
   it("shows a stable empty state without trying to read a question", () => {
     render(<QuestionPanel questions={[]} onSubmit={vi.fn()} onFinish={vi.fn()} loading={false} />);
 
@@ -19,10 +22,28 @@ describe("QuestionPanel", () => {
     expect(screen.getByText("难度未提供")).toBeInTheDocument();
   });
 
-  it("shows an unavailable state for malformed question items", () => {
-    const { container } = render(<QuestionPanel questions={[null]} onSubmit={vi.fn()} onFinish={vi.fn()} loading={false} />);
+  it.each([
+    ["null", null],
+    ["a non-object", "not-a-question"],
+    ["an object without an id", { question_text: "缺少编号" }],
+  ])("disables submission and does not submit %s", (_, question) => {
+    const onSubmit = vi.fn();
+    const { container } = render(<QuestionPanel questions={[question]} onSubmit={onSubmit} onFinish={vi.fn()} loading={false} />);
 
     expect(container).toHaveTextContent("题目数据不可用，无法提交答案。");
-    expect(container.querySelector("button")).toBeDisabled();
+    const submitButton = screen.getByRole("button", { name: "提交答案" });
+    expect(submitButton).toBeDisabled();
+    fireEvent.click(submitButton);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("submits a valid question", async () => {
+    const onSubmit = vi.fn().mockResolvedValue({ score: { total_score: 8 }, strengths: [], suggestions: [] });
+    render(<QuestionPanel questions={[{ id: "question-1", question_text: "请介绍项目" }]} onSubmit={onSubmit} onFinish={vi.fn()} loading={false} />);
+
+    fireEvent.change(screen.getByLabelText("你的回答"), { target: { value: "我的项目回答" } });
+    fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
+
+    expect(onSubmit).toHaveBeenCalledWith("question-1", "我的项目回答");
   });
 });
