@@ -13,3 +13,13 @@ def test_retriever_returns_most_relevant_chunk_first():
     assert len(results) == 1
     assert results[0].chunk_index == 0
     assert results[0].score > 0
+
+
+def test_retriever_handles_records_without_usable_ngrams():
+    retriever = TfidfRetriever()
+
+    retriever.index([
+        ChunkRecord("resume", 0, "甲"),
+    ])
+
+    assert retriever.search("甲") == []

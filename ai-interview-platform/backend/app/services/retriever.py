@@ -36,7 +36,7 @@ class TfidfRetriever:
         self._records = list(records)
         self._matrix = (
             self._vectorizer.fit_transform(record.text for record in self._records)
-            if self._records
+            if any(len(record.text) >= 2 for record in self._records)
             else None
         )
 
