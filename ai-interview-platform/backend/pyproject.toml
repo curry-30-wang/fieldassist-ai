@@ -11,6 +11,7 @@ dependencies = [
     "httpx2",
     "PyMuPDF",
     "pydantic",
+    "python-multipart",
     "python-docx",
     "scikit-learn",
     "sqlalchemy",
