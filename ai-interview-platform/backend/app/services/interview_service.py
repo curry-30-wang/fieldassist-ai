@@ -1,7 +1,7 @@
 import json
 from collections.abc import Callable
 
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.domain import InterviewStatus, can_transition
@@ -10,6 +10,7 @@ from app.repositories import (
     AnswerRepository,
     DocumentRepository,
     InterviewRepository,
+    OperationClaimRepository,
     QuestionRepository,
     ReportRepository,
 )
@@ -29,6 +30,10 @@ class InterviewConflictError(RuntimeError):
 
 class InvalidInterviewInputError(ValueError):
     pass
+
+
+class DatabaseServiceError(RuntimeError):
+    """Raised when interview persistence is temporarily unavailable."""
 
 
 class InterviewService:
@@ -69,9 +74,9 @@ class InterviewService:
                 document = documents.create(filename, content_type, text, chunks)
                 interview.resume_document_id = document.id
                 db.commit()
-            except SQLAlchemyError:
+            except SQLAlchemyError as exc:
                 db.rollback()
-                raise
+                raise DatabaseServiceError("database service unavailable") from exc
 
         self.retriever.index(
             [ChunkRecord(document.id, index, chunk) for index, chunk in enumerate(chunks)]
@@ -79,29 +84,52 @@ class InterviewService:
         return interview
 
     async def generate_questions(self, session_id: str) -> list[Question]:
+        claim_key = f"questions:{session_id}"
+        self._validate_generation_state(session_id)
+        self._acquire_claim(claim_key, "generate_questions")
+
         with self.session_factory() as db:
-            interviews = InterviewRepository(db)
-            questions = QuestionRepository(db)
-            interview = interviews.get(session_id)
-            if interview is None:
-                raise InterviewNotFoundError("interview session not found")
-            if interview.status != InterviewStatus.CREATED.value:
-                raise InterviewConflictError("questions can only be generated once")
-
-            context = self._search_context(db, interview)
-            analysis = await self.llm_provider.analyze_job(interview.job_description)
-            question_set = await self.llm_provider.generate_questions(analysis, context)
-            if len(question_set.questions) != 5:
-                raise AIServiceError("AI service must return exactly five questions")
-
             try:
+                interviews = InterviewRepository(db)
+                questions = QuestionRepository(db)
+                claims = OperationClaimRepository(db)
+                interview = interviews.get(session_id)
+                if interview is None:
+                    raise InterviewNotFoundError("interview session not found")
+                if interview.status != InterviewStatus.CREATED.value:
+                    raise InterviewConflictError("questions can only be generated once")
+
+                context = self._search_context(db, interview)
+                analysis = await self.llm_provider.analyze_job(
+                    interview.job_description
+                )
+                question_set = await self.llm_provider.generate_questions(
+                    analysis, context
+                )
+                if len(question_set.questions) != 5:
+                    raise AIServiceError(
+                        "AI service must return exactly five questions"
+                    )
+
                 stored = questions.create_many(session_id, question_set.questions)
                 self._transition(interview, InterviewStatus.IN_PROGRESS)
+                claims.release(claim_key)
                 db.commit()
                 return stored
-            except SQLAlchemyError:
+            except (InterviewNotFoundError, InterviewConflictError, AIServiceError):
                 db.rollback()
+                self._release_claim(claim_key)
                 raise
+            except IntegrityError as exc:
+                db.rollback()
+                self._release_claim(claim_key)
+                raise InterviewConflictError(
+                    "questions have already been generated"
+                ) from exc
+            except SQLAlchemyError as exc:
+                db.rollback()
+                self._release_claim(claim_key)
+                raise DatabaseServiceError("database service unavailable") from exc
 
     async def submit_answer(
         self, question_id: str, answer_text: str
@@ -110,53 +138,76 @@ class InterviewService:
         if not answer_text:
             raise InvalidInterviewInputError("answer text must not be empty")
 
-        with self.session_factory() as db:
-            interviews = InterviewRepository(db)
-            questions = QuestionRepository(db)
-            answers = AnswerRepository(db)
-            question = questions.get(question_id)
-            if question is None:
-                raise InterviewNotFoundError("question not found")
-            interview = interviews.get(question.session_id)
-            if interview is None:
-                raise InterviewNotFoundError("interview session not found")
-            if interview.status != InterviewStatus.IN_PROGRESS.value:
-                raise InterviewConflictError("interview session does not accept answers")
-            if answers.get_for_question(question_id) is not None:
-                raise InterviewConflictError("question has already been answered")
+        self._validate_answer_state(question_id)
+        claim_key = f"answer:{question_id}"
+        self._acquire_claim(claim_key, "submit_answer")
 
-            context = self._search_context(db, interview, question.question_text)
-            generated = GeneratedQuestion(
-                question_text=question.question_text,
-                question_type=question.question_type,
-                difficulty=question.difficulty,
-                focus_points=json.loads(question.focus_points),
-                reference_direction=question.reference_direction,
-            )
-            evaluation = await self.llm_provider.evaluate_answer(
-                generated, answer_text, context
-            )
+        with self.session_factory() as db:
             try:
+                interviews = InterviewRepository(db)
+                questions = QuestionRepository(db)
+                answers = AnswerRepository(db)
+                claims = OperationClaimRepository(db)
+                question = questions.get(question_id)
+                if question is None:
+                    raise InterviewNotFoundError("question not found")
+                interview = interviews.get(question.session_id)
+                if interview is None:
+                    raise InterviewNotFoundError("interview session not found")
+                if interview.status != InterviewStatus.IN_PROGRESS.value:
+                    raise InterviewConflictError(
+                        "interview session does not accept answers"
+                    )
+                if answers.get_for_question(question_id) is not None:
+                    raise InterviewConflictError(
+                        "question has already been answered"
+                    )
+
+                context = self._search_context(
+                    db, interview, question.question_text
+                )
+                generated = GeneratedQuestion(
+                    question_text=question.question_text,
+                    question_type=question.question_type,
+                    difficulty=question.difficulty,
+                    focus_points=json.loads(question.focus_points),
+                    reference_direction=question.reference_direction,
+                )
+                evaluation = await self.llm_provider.evaluate_answer(
+                    generated, answer_text, context
+                )
                 answers.create(question_id, answer_text, evaluation)
+                claims.release(claim_key)
                 db.commit()
                 return evaluation
-            except SQLAlchemyError:
+            except (InterviewNotFoundError, InterviewConflictError, AIServiceError):
                 db.rollback()
+                self._release_claim(claim_key)
                 raise
+            except IntegrityError as exc:
+                db.rollback()
+                self._release_claim(claim_key)
+                raise InterviewConflictError(
+                    "question has already been answered"
+                ) from exc
+            except SQLAlchemyError as exc:
+                db.rollback()
+                self._release_claim(claim_key)
+                raise DatabaseServiceError("database service unavailable") from exc
 
     async def get_report(self, session_id: str) -> InterviewReport:
         with self.session_factory() as db:
-            interviews = InterviewRepository(db)
-            questions = QuestionRepository(db)
-            answers = AnswerRepository(db)
-            reports = ReportRepository(db)
-            interview = interviews.get(session_id)
-            if interview is None:
-                raise InterviewNotFoundError("interview session not found")
-
-            evaluations = answers.evaluations_for_session(session_id)
-            result = await self.llm_provider.build_report(evaluations)
             try:
+                interviews = InterviewRepository(db)
+                questions = QuestionRepository(db)
+                answers = AnswerRepository(db)
+                reports = ReportRepository(db)
+                interview = interviews.get(session_id)
+                if interview is None:
+                    raise InterviewNotFoundError("interview session not found")
+
+                evaluations = answers.evaluations_for_session(session_id)
+                result = await self.llm_provider.build_report(evaluations)
                 reports.upsert(session_id, result)
                 question_count = len(questions.list_for_session(session_id))
                 if (
@@ -167,21 +218,89 @@ class InterviewService:
                     self._transition(interview, InterviewStatus.COMPLETED)
                 db.commit()
                 return result
-            except SQLAlchemyError:
+            except SQLAlchemyError as exc:
                 db.rollback()
-                raise
+                raise DatabaseServiceError("database service unavailable") from exc
 
     def list_sessions(self) -> list[InterviewSession]:
         with self.session_factory() as db:
-            return InterviewRepository(db).list()
+            try:
+                return InterviewRepository(db).list()
+            except SQLAlchemyError as exc:
+                db.rollback()
+                raise DatabaseServiceError("database service unavailable") from exc
 
     def get_session(self, session_id: str) -> tuple[InterviewSession, list[Question]]:
         with self.session_factory() as db:
-            interview = InterviewRepository(db).get(session_id)
-            if interview is None:
-                raise InterviewNotFoundError("interview session not found")
-            questions = QuestionRepository(db).list_for_session(session_id)
-            return interview, questions
+            try:
+                interview = InterviewRepository(db).get(session_id)
+                if interview is None:
+                    raise InterviewNotFoundError("interview session not found")
+                questions = QuestionRepository(db).list_for_session(session_id)
+                return interview, questions
+            except SQLAlchemyError as exc:
+                db.rollback()
+                raise DatabaseServiceError("database service unavailable") from exc
+
+    def _validate_generation_state(self, session_id: str) -> None:
+        with self.session_factory() as db:
+            try:
+                interview = InterviewRepository(db).get(session_id)
+                if interview is None:
+                    raise InterviewNotFoundError("interview session not found")
+                if interview.status != InterviewStatus.CREATED.value:
+                    raise InterviewConflictError(
+                        "questions can only be generated once"
+                    )
+            except SQLAlchemyError as exc:
+                db.rollback()
+                raise DatabaseServiceError("database service unavailable") from exc
+
+    def _validate_answer_state(self, question_id: str) -> None:
+        with self.session_factory() as db:
+            try:
+                question = QuestionRepository(db).get(question_id)
+                if question is None:
+                    raise InterviewNotFoundError("question not found")
+                interview = InterviewRepository(db).get(question.session_id)
+                if interview is None:
+                    raise InterviewNotFoundError("interview session not found")
+                if interview.status != InterviewStatus.IN_PROGRESS.value:
+                    raise InterviewConflictError(
+                        "interview session does not accept answers"
+                    )
+                if AnswerRepository(db).get_for_question(question_id) is not None:
+                    raise InterviewConflictError(
+                        "question has already been answered"
+                    )
+            except SQLAlchemyError as exc:
+                db.rollback()
+                raise DatabaseServiceError("database service unavailable") from exc
+
+    def _acquire_claim(self, resource_key: str, operation_type: str) -> None:
+        with self.session_factory() as db:
+            try:
+                OperationClaimRepository(db).acquire(
+                    resource_key, operation_type
+                )
+                db.commit()
+            except IntegrityError as exc:
+                db.rollback()
+                raise InterviewConflictError(
+                    "request is already being processed"
+                ) from exc
+            except SQLAlchemyError as exc:
+                db.rollback()
+                raise DatabaseServiceError("database service unavailable") from exc
+
+    def _release_claim(self, resource_key: str) -> None:
+        with self.session_factory() as db:
+            try:
+                OperationClaimRepository(db).release(resource_key)
+                db.commit()
+            except SQLAlchemyError as exc:
+                db.rollback()
+                raise DatabaseServiceError("database service unavailable") from exc
 
     def _search_context(
         self,

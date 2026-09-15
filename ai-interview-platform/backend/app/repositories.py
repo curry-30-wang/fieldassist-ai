@@ -1,10 +1,18 @@
 import json
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.models import Answer, Document, DocumentChunk, InterviewSession, Question, Report
+from app.models import (
+    Answer,
+    Document,
+    DocumentChunk,
+    InterviewSession,
+    OperationClaim,
+    Question,
+    Report,
+)
 from app.schemas import AnswerEvaluation, GeneratedQuestion, InterviewReport, ScoreBreakdown
 
 
@@ -170,3 +178,24 @@ class ReportRepository:
         )
         self.db.flush()
         return report
+
+
+class OperationClaimRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def acquire(self, resource_key: str, operation_type: str) -> None:
+        self.db.add(
+            OperationClaim(
+                resource_key=resource_key,
+                operation_type=operation_type,
+            )
+        )
+        self.db.flush()
+
+    def release(self, resource_key: str) -> None:
+        self.db.execute(
+            delete(OperationClaim).where(
+                OperationClaim.resource_key == resource_key
+            )
+        )

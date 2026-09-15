@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -49,6 +49,11 @@ class DocumentChunk(Base):
 
 class Question(Base):
     __tablename__ = "questions"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "order_index", name="uq_questions_session_order"
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     session_id: Mapped[str] = mapped_column(ForeignKey("interview_sessions.id"))
@@ -62,6 +67,9 @@ class Question(Base):
 
 class Answer(Base):
     __tablename__ = "answers"
+    __table_args__ = (
+        UniqueConstraint("question_id", name="uq_answers_question_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     question_id: Mapped[str] = mapped_column(ForeignKey("questions.id"))
@@ -80,3 +88,11 @@ class Report(Base):
     summary: Mapped[str] = mapped_column(Text)
     weaknesses_json: Mapped[str] = mapped_column(Text)
     recommendations_json: Mapped[str] = mapped_column(Text)
+
+
+class OperationClaim(Base):
+    __tablename__ = "operation_claims"
+
+    resource_key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    operation_type: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

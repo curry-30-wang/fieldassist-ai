@@ -1,12 +1,14 @@
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from app.api.interviews import router as interviews_router
 from app.api.questions import router as questions_router
 from app.config import Settings
 from app.db import create_engine_and_session, init_db
 from app.services.interview_service import (
+    DatabaseServiceError,
     InterviewConflictError,
     InterviewNotFoundError,
     InterviewService,
@@ -65,6 +67,15 @@ def create_app(
     @application.exception_handler(AIServiceError)
     async def ai_service_handler(request: Request, exc: AIServiceError):
         raise HTTPException(status_code=502, detail=str(exc))
+
+    @application.exception_handler(DatabaseServiceError)
+    async def database_service_handler(
+        request: Request, exc: DatabaseServiceError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "database service unavailable"},
+        )
 
     application.include_router(interviews_router)
     application.include_router(questions_router)
