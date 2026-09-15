@@ -25,6 +25,7 @@ describe("QuestionPanel", () => {
   it.each([
     ["null", null],
     ["a non-object", "not-a-question"],
+    ["an array question item", []],
     ["an object without an id", { question_text: "缺少编号" }],
   ])("disables submission and does not submit %s", (_, question) => {
     const onSubmit = vi.fn();
