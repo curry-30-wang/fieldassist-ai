@@ -39,5 +39,5 @@ export default function App() {
 
   function restart() { setStage("setup"); setReport(null); setQuestions([]); setSessionId(null); setError(""); }
 
-  return <main className="app-shell"><div className="topbar"><span>应届生模拟面试</span><span className="status-dot">● 在线练习</span></div>{error && <div className="error" role="alert">{error}</div>}{stage === "setup" && <InterviewSetup onStart={startInterview} loading={loading} />}{stage === "answering" && <QuestionPanel questions={questions} onSubmit={answerQuestion} onFinish={finishInterview} loading={loading} />}{stage === "report" && report && <ReportPanel report={report} results={results} onRestart={restart} />}</main>;
+  return <main className="app-shell"><div className="topbar"><span>应届生模拟面试</span><span className="status-dot">● 在线练习</span></div>{loading && <div role="status" aria-live="polite">正在处理，请稍候…</div>}{error && <div className="error" role="alert">{error}</div>}{stage === "setup" && <InterviewSetup onStart={startInterview} loading={loading} />}{stage === "answering" && <QuestionPanel questions={questions} onSubmit={answerQuestion} onFinish={finishInterview} loading={loading} />}{stage === "report" && report && <ReportPanel report={report} results={results} onRestart={restart} />}</main>;
 }

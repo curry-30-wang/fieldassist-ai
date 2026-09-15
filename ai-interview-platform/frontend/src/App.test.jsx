@@ -27,6 +27,11 @@ describe("App", () => {
   it("throws the backend detail for a non-2xx response", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ detail: "会话不存在" }), { status: 404 }));
     await expect(getReport("missing")).rejects.toThrow("会话不存在");
-    expect(globalThis.fetch).toHaveBeenCalledWith("http://127.0.0.1:8000/api/interviews/missing/report", {});
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/interviews/missing/report", {});
+  });
+
+  it("uses a useful fallback when a non-2xx response has no detail", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("not json", { status: 503 }));
+    await expect(getReport("missing")).rejects.toThrow("请求失败（503）");
   });
 });

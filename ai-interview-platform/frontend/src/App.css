@@ -24,5 +24,6 @@ button:hover { background: #1d4ed8; } button:disabled { opacity: .55; cursor: no
 .score { display: flex; align-items: baseline; gap: 5px; margin: 24px 0; color: #64748b; } .score strong { font-size: 64px; color: #2563eb; }
 .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; } li { margin: 10px 0; }
 .result-item { border-top: 1px solid #e2e8f0; padding: 15px 0; } .result-item span { color: #64748b; } .result-item strong { float: right; color: #2563eb; } .result-item p { margin-bottom: 0; }
+.component-scores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 16px 0; color: #475569; font-size: 14px; }
 .secondary { background: #475569; } .secondary:hover { background: #334155; }
 @media (max-width: 600px) { .app-shell { width: min(100% - 20px, 900px); padding-top: 18px; } .card { padding: 24px 18px; } .report-grid { grid-template-columns: 1fr; gap: 8px; } }
