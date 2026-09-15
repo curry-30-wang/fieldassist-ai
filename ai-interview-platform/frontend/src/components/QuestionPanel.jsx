@@ -7,6 +7,7 @@ export default function QuestionPanel({ questions, onSubmit, onFinish, loading }
   const [evaluation, setEvaluation] = useState(null);
   const [panelError, setPanelError] = useState("");
   const question = questionList[index];
+  const questionIsUsable = question !== null && typeof question === "object" && !Array.isArray(question);
 
   if (!questionList.length) {
     return (
@@ -19,7 +20,7 @@ export default function QuestionPanel({ questions, onSubmit, onFinish, loading }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    if (!question.id) {
+    if (!questionIsUsable || !question.id) {
       setPanelError("当前题目缺少有效编号，暂时无法提交答案。");
       return;
     }
@@ -38,6 +39,13 @@ export default function QuestionPanel({ questions, onSubmit, onFinish, loading }
   return (
     <section className="card question-card">
       <div className="progress" aria-live="polite">第 {index + 1} 题 / 共 {questionList.length} 题</div>
+      {!questionIsUsable ? (
+        <>
+          <h2>题目数据不可用</h2>
+          <p className="error" role="alert">题目数据不可用，无法提交答案。</p>
+          <button type="button" disabled>提交答案</button>
+        </>
+      ) : <>
       <h2>{question.question_text || "题目内容暂缺"}</h2>
       <div className="tags"><span>{question.question_type || "题目类型未提供"}</span><span>{question.difficulty || "难度未提供"}</span></div>
       <form onSubmit={handleSubmit}>
@@ -52,6 +60,7 @@ export default function QuestionPanel({ questions, onSubmit, onFinish, loading }
         <p><strong>改进建议：</strong>{evaluation.suggestions.join("、")}</p>
         <button type="button" onClick={next}>{index === questionList.length - 1 ? "查看面试报告" : "下一题"}</button>
       </div>}
+      </>}
     </section>
   );
 }

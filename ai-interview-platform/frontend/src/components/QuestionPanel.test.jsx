@@ -18,4 +18,11 @@ describe("QuestionPanel", () => {
     expect(screen.getByText("题目类型未提供")).toBeInTheDocument();
     expect(screen.getByText("难度未提供")).toBeInTheDocument();
   });
+
+  it("shows an unavailable state for malformed question items", () => {
+    const { container } = render(<QuestionPanel questions={[null]} onSubmit={vi.fn()} onFinish={vi.fn()} loading={false} />);
+
+    expect(container).toHaveTextContent("题目数据不可用，无法提交答案。");
+    expect(container.querySelector("button")).toBeDisabled();
+  });
 });
