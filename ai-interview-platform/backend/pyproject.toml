@@ -9,7 +9,10 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi",
     "httpx2",
+    "PyMuPDF",
     "pydantic",
+    "python-docx",
+    "scikit-learn",
     "sqlalchemy",
     "uvicorn",
     "pytest",
