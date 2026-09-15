@@ -148,10 +148,47 @@ def test_openai_compatible_provider_reads_llm_values_from_environment(monkeypatc
     assert provider.model == "environment-model"
 
 
+def test_openai_compatible_provider_uses_deepseek_defaults_for_blank_llm_values(monkeypatch):
+    monkeypatch.setenv("LLM_BASE_URL", "")
+    monkeypatch.setenv("LLM_MODEL", "")
+
+    provider = OpenAICompatibleLLM.from_settings(Settings())
+
+    assert provider.base_url == "https://api.deepseek.com/v1"
+    assert provider.model == "deepseek-chat"
+
+
 @pytest.mark.anyio
 async def test_openai_compatible_provider_wraps_invalid_ai_response():
     async def handler(request: httpx2.Request) -> httpx2.Response:
         return httpx2.Response(200, json={"choices": [{"message": {"content": "not json"}}]})
+
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as client:
+        provider = OpenAICompatibleLLM("https://llm.example/v1", "test-key", "test-model", client)
+
+        with pytest.raises(AIServiceError, match="AI service error"):
+            await provider.analyze_job("招聘 Python 后端开发")
+
+
+@pytest.mark.anyio
+async def test_openai_compatible_provider_wraps_non_success_response():
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(503, json={"error": {"message": "service unavailable"}})
+
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as client:
+        provider = OpenAICompatibleLLM("https://llm.example/v1", "test-key", "test-model", client)
+
+        with pytest.raises(AIServiceError, match="AI service error"):
+            await provider.analyze_job("招聘 Python 后端开发")
+
+
+@pytest.mark.anyio
+async def test_openai_compatible_provider_wraps_schema_validation_failure():
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200,
+            json={"choices": [{"message": {"content": json.dumps({"job_title": "Python 后端开发"})}}]},
+        )
 
     async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as client:
         provider = OpenAICompatibleLLM("https://llm.example/v1", "test-key", "test-model", client)
