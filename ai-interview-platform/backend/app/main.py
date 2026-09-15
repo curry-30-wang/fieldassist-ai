@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.interviews import router as interviews_router
@@ -18,12 +19,27 @@ from app.services.llm import AIServiceError, LLMProvider, OpenAICompatibleLLM
 from app.services.retriever import Retriever, TfidfRetriever
 
 
+BACKEND_DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+ALLOWED_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+)
+
+
 def create_app(
     database_url: str | None = None,
     llm_provider: LLMProvider | None = None,
     retriever: Retriever | None = None,
 ) -> FastAPI:
+    BACKEND_DATA_DIR.mkdir(parents=True, exist_ok=True)
     application = FastAPI(title="AI Interview Platform")
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(ALLOWED_ORIGINS),
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     settings = Settings()
     resolved_database_url = database_url or settings.database_url
     if resolved_database_url.startswith("sqlite:///./"):
