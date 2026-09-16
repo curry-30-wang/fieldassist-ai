@@ -77,3 +77,27 @@ def test_init_db_adds_uniqueness_to_existing_interview_tables():
             connection.exec_driver_sql(
                 "INSERT INTO reports (id, session_id) VALUES ('r2', 'session-1')"
             )
+
+
+def test_init_db_merges_duplicate_legacy_report_rows_before_unique_index():
+    engine, _ = create_engine_and_session("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE reports (id TEXT PRIMARY KEY, session_id TEXT NOT NULL)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO reports (id, session_id) VALUES "
+            "('r1', 'session-1'), ('r2', 'session-1'), ('r3', 'session-2')"
+        )
+
+    init_db(engine)
+
+    with engine.begin() as connection:
+        rows = connection.exec_driver_sql(
+            "SELECT id, session_id FROM reports ORDER BY id"
+        ).fetchall()
+        assert rows == [("r1", "session-1"), ("r3", "session-2")]
+        with pytest.raises(IntegrityError):
+            connection.exec_driver_sql(
+                "INSERT INTO reports (id, session_id) VALUES ('r4', 'session-1')"
+            )

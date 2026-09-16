@@ -36,12 +36,27 @@ def init_db(engine: Engine) -> None:
         "uq_answers_question_id",
         ("question_id",),
     )
+    _deduplicate_legacy_sqlite_reports(engine)
     _ensure_unique_index(
         engine,
         "reports",
         "uq_reports_session_id",
         ("session_id",),
     )
+
+
+def _deduplicate_legacy_sqlite_reports(engine: Engine) -> None:
+    """Remove duplicate legacy report rows before adding the SQLite index."""
+    if engine.dialect.name != "sqlite":
+        return
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "DELETE FROM reports "
+            "WHERE rowid NOT IN ("
+            "SELECT MIN(rowid) FROM reports GROUP BY session_id"
+            ")"
+        )
 
 
 def _ensure_unique_index(
