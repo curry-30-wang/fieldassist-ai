@@ -4,10 +4,11 @@ from threading import Event, Lock
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.main import create_app
-from app.models import Answer, Question
+from app.models import Answer, OperationClaim, Question, Report
 from app.repositories import QuestionRepository
 from app.services.llm import AIServiceError, FakeLLMProvider
 
@@ -40,6 +41,15 @@ def _generate_questions(client: TestClient, session_id: str) -> list[dict]:
     return questions
 
 
+def _answer_question(client: TestClient, question_id: str, text="具体回答") -> dict:
+    response = client.post(
+        f"/api/questions/{question_id}/answers",
+        json={"answer_text": text},
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
 def test_interview_api_completes_the_core_flow(tmp_path):
     client = TestClient(_application(tmp_path))
     session_id = _create_interview(client)["id"]
@@ -55,6 +65,9 @@ def test_interview_api_completes_the_core_flow(tmp_path):
     report = client.get(f"/api/interviews/{session_id}/report")
     assert report.status_code == 200
     assert "summary" in report.json()
+    assert report.json()["results"][0]["question"]["id"] == questions[0]["id"]
+    assert report.json()["results"][0]["answer_text"] == "我会使用 FastAPI 编写接口并进行参数校验"
+    assert report.json()["results"][0]["evaluation"]["score"] == answered.json()["score"]
 
 
 def test_list_and_detail_routes_return_created_session_and_questions(tmp_path):
@@ -157,14 +170,83 @@ class FailingGenerationProvider(FakeLLMProvider):
         raise AIServiceError("synthetic AI failure")
 
 
-def test_ai_failure_returns_bad_gateway_and_releases_generation_guard(tmp_path):
-    client = TestClient(_application(tmp_path, FailingGenerationProvider()))
+def _assert_no_claim(application, resource_key):
+    with application.state.session_factory() as db:
+        assert db.get(OperationClaim, resource_key) is None
+
+
+def test_ai_failure_marks_generation_failed_and_releases_guard(tmp_path):
+    application = _application(tmp_path, FailingGenerationProvider())
+    client = TestClient(application)
     session_id = _create_interview(client)["id"]
 
     response = client.post(f"/api/interviews/{session_id}/questions")
     assert response.status_code == 502
     assert response.json() == {"detail": "synthetic AI failure"}
-    assert client.get(f"/api/interviews/{session_id}").json()["status"] == "created"
+    assert client.get(f"/api/interviews/{session_id}").json()["status"] == "failed"
+    assert client.post(f"/api/interviews/{session_id}/questions").status_code == 409
+    _assert_no_claim(application, f"questions:{session_id}")
+
+
+class FailingAnswerProvider(FakeLLMProvider):
+    async def evaluate_answer(self, question, answer, context):
+        raise AIServiceError("synthetic answer failure")
+
+
+def test_ai_failure_marks_answer_session_failed_and_blocks_retry(tmp_path):
+    application = _application(tmp_path, FailingAnswerProvider())
+    client = TestClient(application)
+    session_id = _create_interview(client)["id"]
+    question_id = _generate_questions(client, session_id)[0]["id"]
+
+    response = client.post(
+        f"/api/questions/{question_id}/answers", json={"answer_text": "回答"}
+    )
+
+    assert response.status_code == 502
+    assert client.get(f"/api/interviews/{session_id}").json()["status"] == "failed"
+    assert client.post(
+        f"/api/questions/{question_id}/answers", json={"answer_text": "重试"}
+    ).status_code == 409
+    _assert_no_claim(application, f"answer:{question_id}")
+
+
+class FailingReportProvider(FakeLLMProvider):
+    async def build_report(self, evaluations):
+        raise AIServiceError("synthetic report failure")
+
+
+def test_ai_failure_marks_report_session_failed_and_blocks_retry(tmp_path):
+    application = _application(tmp_path, FailingReportProvider())
+    client = TestClient(application)
+    session_id = _create_interview(client)["id"]
+    question_id = _generate_questions(client, session_id)[0]["id"]
+    _answer_question(client, question_id)
+
+    response = client.get(f"/api/interviews/{session_id}/report")
+
+    assert response.status_code == 502
+    assert client.get(f"/api/interviews/{session_id}").json()["status"] == "failed"
+    assert client.get(f"/api/interviews/{session_id}/report").status_code == 409
+    _assert_no_claim(application, f"report:{session_id}")
+
+
+class FailingCreationProvider(FakeLLMProvider):
+    async def analyze_job(self, job_description):
+        raise AIServiceError("synthetic creation failure")
+
+
+def test_creation_ai_failure_returns_bad_gateway_without_creating_session(tmp_path):
+    client = TestClient(_application(tmp_path, FailingCreationProvider()))
+
+    response = client.post(
+        "/api/interviews",
+        data={"job_description": "招聘 Python 后端开发"},
+        files={"resume": RESUME},
+    )
+
+    assert response.status_code == 502
+    assert client.get("/api/interviews").json() == {"interviews": []}
 
 
 def test_database_failure_returns_safe_json_and_rolls_back(monkeypatch, tmp_path):
@@ -277,6 +359,104 @@ def test_concurrent_answers_return_one_success_and_one_conflict(tmp_path):
     assert provider.calls == 1
 
 
+class CountingReportProvider(FakeLLMProvider):
+    def __init__(self):
+        self.report_calls = 0
+        self.fail_reports = False
+
+    async def build_report(self, evaluations):
+        self.report_calls += 1
+        if self.fail_reports:
+            raise AIServiceError("report provider unavailable")
+        return await super().build_report(evaluations)
+
+
+def test_report_is_saved_once_and_historical_reads_do_not_call_model(tmp_path):
+    provider = CountingReportProvider()
+    application = _application(tmp_path, provider)
+    client = TestClient(application)
+    session_id = _create_interview(client)["id"]
+    question_id = _generate_questions(client, session_id)[0]["id"]
+    _answer_question(client, question_id, "持久化回答")
+
+    first = client.get(f"/api/interviews/{session_id}/report")
+    provider.fail_reports = True
+    second = client.get(f"/api/interviews/{session_id}/report")
+
+    assert first.status_code == second.status_code == 200
+    assert first.json() == second.json()
+    assert provider.report_calls == 1
+    assert first.json()["results"][0]["answer_text"] == "持久化回答"
+    with application.state.session_factory() as db:
+        assert len(list(db.scalars(select(Report).where(Report.session_id == session_id)))) == 1
+
+
+class WrongTotalReportProvider(FakeLLMProvider):
+    async def build_report(self, evaluations):
+        report = await super().build_report(evaluations)
+        return report.model_copy(update={"total_score": 1})
+
+
+def test_report_total_is_calculated_from_validated_answer_scores(tmp_path):
+    application = _application(tmp_path, WrongTotalReportProvider())
+    client = TestClient(application)
+    session_id = _create_interview(client)["id"]
+    question_id = _generate_questions(client, session_id)[0]["id"]
+    answer = _answer_question(client, question_id)
+
+    report = client.get(f"/api/interviews/{session_id}/report")
+
+    assert report.status_code == 200
+    assert report.json()["total_score"] == answer["score"]["total_score"]
+    with application.state.session_factory() as db:
+        assert db.scalar(select(Report).where(Report.session_id == session_id)).total_score == answer["score"]["total_score"]
+
+
+class BlockingReportProvider(FakeLLMProvider):
+    def __init__(self):
+        self.entered = Event()
+        self.release = Event()
+        self.calls = 0
+
+    async def build_report(self, evaluations):
+        self.calls += 1
+        self.entered.set()
+        while not self.release.is_set():
+            await asyncio.sleep(0.01)
+        return await super().build_report(evaluations)
+
+
+def test_concurrent_report_generation_has_one_writer_and_stable_followup(tmp_path):
+    provider = BlockingReportProvider()
+    application = _application(tmp_path, provider)
+    client = TestClient(application)
+    session_id = _create_interview(client)["id"]
+    question_id = _generate_questions(client, session_id)[0]["id"]
+    _answer_question(client, question_id)
+
+    def report():
+        return TestClient(application, raise_server_exceptions=False).get(
+            f"/api/interviews/{session_id}/report"
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(report)
+        try:
+            assert provider.entered.wait(timeout=2)
+            second = executor.submit(report)
+            second_response = second.result(timeout=10)
+        finally:
+            provider.release.set()
+        first_response = first.result(timeout=10)
+
+    assert sorted([first_response.status_code, second_response.status_code]) == [200, 409]
+    stable = client.get(f"/api/interviews/{session_id}/report")
+    assert stable.status_code == 200
+    assert stable.json() == first_response.json()
+    assert provider.calls == 1
+    _assert_no_claim(application, f"report:{session_id}")
+
+
 def test_database_constraints_reject_duplicate_question_order_and_answer(tmp_path):
     application = _application(tmp_path)
     client = TestClient(application)
@@ -315,6 +495,34 @@ def test_database_constraints_reject_duplicate_question_order_and_answer(tmp_pat
                 score_json="{}",
                 feedback_json="{}",
             )
+        )
+        with pytest.raises(IntegrityError):
+            db.commit()
+
+
+def test_database_constraint_rejects_duplicate_report_session(tmp_path):
+    application = _application(tmp_path)
+    client = TestClient(application)
+    session_id = _create_interview(client)["id"]
+
+    with application.state.session_factory() as db:
+        db.add_all(
+            [
+                Report(
+                    session_id=session_id,
+                    total_score=7,
+                    summary="first",
+                    weaknesses_json="[]",
+                    recommendations_json="[]",
+                ),
+                Report(
+                    session_id=session_id,
+                    total_score=8,
+                    summary="second",
+                    weaknesses_json="[]",
+                    recommendations_json="[]",
+                ),
+            ]
         )
         with pytest.raises(IntegrityError):
             db.commit()

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 
@@ -39,12 +39,20 @@ describe("QuestionPanel", () => {
   });
 
   it("submits a valid question", async () => {
-    const onSubmit = vi.fn().mockResolvedValue({ score: { total_score: 8 }, strengths: [], suggestions: [] });
+    const onSubmit = vi.fn().mockResolvedValue({
+      score: { total_score: 8, accuracy: 9, completeness: 7, relevance: 8, clarity: 8 },
+      strengths: [],
+      suggestions: [],
+    });
     render(<QuestionPanel questions={[{ id: "question-1", question_text: "请介绍项目" }]} onSubmit={onSubmit} onFinish={vi.fn()} loading={false} />);
 
     fireEvent.change(screen.getByLabelText("你的回答"), { target: { value: "我的项目回答" } });
     fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
 
     expect(onSubmit).toHaveBeenCalledWith("question-1", "我的项目回答");
+    await waitFor(() => expect(screen.getByText("准确性：9 / 10")).toBeInTheDocument());
+    expect(screen.getByText("完整性：7 / 10")).toBeInTheDocument();
+    expect(screen.getByText("相关性：8 / 10")).toBeInTheDocument();
+    expect(screen.getByText("清晰度：8 / 10")).toBeInTheDocument();
   });
 });

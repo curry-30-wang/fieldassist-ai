@@ -13,7 +13,14 @@ from app.models import (
     Question,
     Report,
 )
-from app.schemas import AnswerEvaluation, GeneratedQuestion, InterviewReport, ScoreBreakdown
+from app.schemas import (
+    AnswerEvaluation,
+    GeneratedQuestion,
+    InterviewReport,
+    ReportQuestion,
+    ReportResult,
+    ScoreBreakdown,
+)
 
 
 class InterviewRepository:
@@ -127,7 +134,10 @@ class AnswerRepository:
         answer = Answer(
             question_id=question_id,
             answer_text=answer_text,
-            score_json=json.dumps(evaluation.score.model_dump(), ensure_ascii=False),
+            score_json=json.dumps(
+                evaluation.score.model_dump(exclude={"total_score"}),
+                ensure_ascii=False,
+            ),
             feedback_json=json.dumps(
                 {
                     "strengths": evaluation.strengths,
@@ -143,41 +153,70 @@ class AnswerRepository:
         return answer
 
     def evaluations_for_session(self, session_id: str) -> list[AnswerEvaluation]:
-        answers = self.db.scalars(
-            select(Answer)
+        return [item.evaluation for item in self.results_for_session(session_id)]
+
+    def results_for_session(self, session_id: str) -> list[ReportResult]:
+        rows = self.db.execute(
+            select(Answer, Question)
             .join(Question, Answer.question_id == Question.id)
             .where(Question.session_id == session_id)
             .order_by(Question.order_index)
         )
-        evaluations = []
-        for answer in answers:
+        results = []
+        for answer, question in rows:
             feedback = json.loads(answer.feedback_json)
-            evaluations.append(
-                AnswerEvaluation(
-                    score=ScoreBreakdown.model_validate(json.loads(answer.score_json)),
-                    **feedback,
+            results.append(
+                ReportResult(
+                    question=ReportQuestion(
+                        id=question.id,
+                        question_text=question.question_text,
+                        question_type=question.question_type,
+                        difficulty=question.difficulty,
+                        focus_points=json.loads(question.focus_points),
+                        reference_direction=question.reference_direction,
+                        order_index=question.order_index,
+                    ),
+                    answer_text=answer.answer_text,
+                    evaluation=AnswerEvaluation(
+                        score=ScoreBreakdown.model_validate(
+                            json.loads(answer.score_json)
+                        ),
+                        **feedback,
+                    ),
                 )
             )
-        return evaluations
+        return results
 
 
 class ReportRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def upsert(self, session_id: str, result: InterviewReport) -> Report:
-        report = self.db.scalar(select(Report).where(Report.session_id == session_id))
-        if report is None:
-            report = Report(session_id=session_id)
-            self.db.add(report)
-        report.total_score = result.total_score
-        report.summary = result.summary
-        report.weaknesses_json = json.dumps(result.weaknesses, ensure_ascii=False)
-        report.recommendations_json = json.dumps(
-            result.recommendations, ensure_ascii=False
+    def get_for_session(self, session_id: str) -> Report | None:
+        return self.db.scalar(select(Report).where(Report.session_id == session_id))
+
+    def create(self, session_id: str, result: InterviewReport) -> Report:
+        report = Report(
+            session_id=session_id,
+            total_score=result.total_score,
+            summary=result.summary,
+            weaknesses_json=json.dumps(result.weaknesses, ensure_ascii=False),
+            recommendations_json=json.dumps(
+                result.recommendations, ensure_ascii=False
+            ),
         )
+        self.db.add(report)
         self.db.flush()
         return report
+
+    @staticmethod
+    def to_schema(report: Report) -> InterviewReport:
+        return InterviewReport(
+            total_score=report.total_score,
+            summary=report.summary,
+            weaknesses=json.loads(report.weaknesses_json),
+            recommendations=json.loads(report.recommendations_json),
+        )
 
 
 class OperationClaimRepository:

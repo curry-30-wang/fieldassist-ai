@@ -57,6 +57,12 @@ export default function QuestionPanel({ questions, onSubmit, onFinish, loading }
       {panelError && <p className="error" role="alert">{panelError}</p>}
       {evaluation && <div className="evaluation">
         <h3>本题评分：{evaluation.score.total_score} / 10</h3>
+        <div className="component-scores" aria-label="本题分项得分">
+          <span>准确性：{evaluation.score.accuracy} / 10</span>
+          <span>完整性：{evaluation.score.completeness} / 10</span>
+          <span>相关性：{evaluation.score.relevance} / 10</span>
+          <span>清晰度：{evaluation.score.clarity} / 10</span>
+        </div>
         <p><strong>优点：</strong>{evaluation.strengths.join("、")}</p>
         <p><strong>改进建议：</strong>{evaluation.suggestions.join("、")}</p>
         <button type="button" onClick={next}>{index === questionList.length - 1 ? "查看面试报告" : "下一题"}</button>

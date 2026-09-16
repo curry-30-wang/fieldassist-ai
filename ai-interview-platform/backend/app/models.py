@@ -81,6 +81,9 @@ class Answer(Base):
 
 class Report(Base):
     __tablename__ = "reports"
+    __table_args__ = (
+        UniqueConstraint("session_id", name="uq_reports_session_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     session_id: Mapped[str] = mapped_column(ForeignKey("interview_sessions.id"))

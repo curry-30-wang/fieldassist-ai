@@ -14,7 +14,13 @@ from app.repositories import (
     QuestionRepository,
     ReportRepository,
 )
-from app.schemas import AnswerEvaluation, GeneratedQuestion, InterviewReport
+from app.schemas import (
+    AnswerEvaluation,
+    GeneratedQuestion,
+    InterviewReport,
+    InterviewReportResponse,
+    ReportResult,
+)
 from app.services.document_parser import DocumentParser, split_text
 from app.services.llm import AIServiceError, LLMProvider
 from app.services.retriever import ChunkRecord, Retriever
@@ -116,7 +122,11 @@ class InterviewService:
                 claims.release(claim_key)
                 db.commit()
                 return stored
-            except (InterviewNotFoundError, InterviewConflictError, AIServiceError):
+            except AIServiceError:
+                db.rollback()
+                self._fail_session_and_release_claim(session_id, claim_key)
+                raise
+            except (InterviewNotFoundError, InterviewConflictError):
                 db.rollback()
                 self._release_claim(claim_key)
                 raise
@@ -138,7 +148,7 @@ class InterviewService:
         if not answer_text:
             raise InvalidInterviewInputError("answer text must not be empty")
 
-        self._validate_answer_state(question_id)
+        session_id = self._validate_answer_state(question_id)
         claim_key = f"answer:{question_id}"
         self._acquire_claim(claim_key, "submit_answer")
 
@@ -180,7 +190,11 @@ class InterviewService:
                 claims.release(claim_key)
                 db.commit()
                 return evaluation
-            except (InterviewNotFoundError, InterviewConflictError, AIServiceError):
+            except AIServiceError:
+                db.rollback()
+                self._fail_session_and_release_claim(session_id, claim_key)
+                raise
+            except (InterviewNotFoundError, InterviewConflictError):
                 db.rollback()
                 self._release_claim(claim_key)
                 raise
@@ -195,20 +209,53 @@ class InterviewService:
                 self._release_claim(claim_key)
                 raise DatabaseServiceError("database service unavailable") from exc
 
-    async def get_report(self, session_id: str) -> InterviewReport:
+    async def get_report(self, session_id: str) -> InterviewReportResponse:
+        saved = self._saved_report(session_id)
+        if saved is not None:
+            return saved
+
+        self._validate_report_state(session_id)
+        claim_key = f"report:{session_id}"
+        self._acquire_claim(claim_key, "build_report")
+
         with self.session_factory() as db:
             try:
                 interviews = InterviewRepository(db)
                 questions = QuestionRepository(db)
                 answers = AnswerRepository(db)
                 reports = ReportRepository(db)
+                claims = OperationClaimRepository(db)
                 interview = interviews.get(session_id)
                 if interview is None:
                     raise InterviewNotFoundError("interview session not found")
+                saved_report = reports.get_for_session(session_id)
+                if saved_report is not None:
+                    claims.release(claim_key)
+                    response = self._report_response(
+                        reports.to_schema(saved_report),
+                        answers.results_for_session(session_id),
+                    )
+                    db.commit()
+                    return response
+                if interview.status != InterviewStatus.IN_PROGRESS.value:
+                    raise InterviewConflictError("interview report is not available")
 
-                evaluations = answers.evaluations_for_session(session_id)
-                result = await self.llm_provider.build_report(evaluations)
-                reports.upsert(session_id, result)
+                results = answers.results_for_session(session_id)
+                if not results:
+                    raise InterviewConflictError(
+                        "interview report requires at least one answer"
+                    )
+                evaluations = [item.evaluation for item in results]
+                generated = await self.llm_provider.build_report(evaluations)
+                total_score = round(
+                    sum(item.score.total_score for item in evaluations)
+                    / len(evaluations),
+                    2,
+                )
+                result = InterviewReport.model_validate(
+                    {**generated.model_dump(), "total_score": total_score}
+                )
+                reports.create(session_id, result)
                 question_count = len(questions.list_for_session(session_id))
                 if (
                     interview.status == InterviewStatus.IN_PROGRESS.value
@@ -216,10 +263,29 @@ class InterviewService:
                     and len(evaluations) == question_count
                 ):
                     self._transition(interview, InterviewStatus.COMPLETED)
+                claims.release(claim_key)
                 db.commit()
-                return result
+                return self._report_response(result, results)
+            except AIServiceError:
+                db.rollback()
+                self._fail_session_and_release_claim(session_id, claim_key)
+                raise
+            except (InterviewNotFoundError, InterviewConflictError):
+                db.rollback()
+                self._release_claim(claim_key)
+                raise
+            except IntegrityError as exc:
+                db.rollback()
+                self._release_claim(claim_key)
+                saved = self._saved_report(session_id)
+                if saved is not None:
+                    return saved
+                raise InterviewConflictError(
+                    "interview report is already being generated"
+                ) from exc
             except SQLAlchemyError as exc:
                 db.rollback()
+                self._release_claim(claim_key)
                 raise DatabaseServiceError("database service unavailable") from exc
 
     def list_sessions(self) -> list[InterviewSession]:
@@ -256,7 +322,7 @@ class InterviewService:
                 db.rollback()
                 raise DatabaseServiceError("database service unavailable") from exc
 
-    def _validate_answer_state(self, question_id: str) -> None:
+    def _validate_answer_state(self, question_id: str) -> str:
         with self.session_factory() as db:
             try:
                 question = QuestionRepository(db).get(question_id)
@@ -273,6 +339,35 @@ class InterviewService:
                     raise InterviewConflictError(
                         "question has already been answered"
                     )
+                return interview.id
+            except SQLAlchemyError as exc:
+                db.rollback()
+                raise DatabaseServiceError("database service unavailable") from exc
+
+    def _validate_report_state(self, session_id: str) -> None:
+        with self.session_factory() as db:
+            try:
+                interview = InterviewRepository(db).get(session_id)
+                if interview is None:
+                    raise InterviewNotFoundError("interview session not found")
+                if interview.status != InterviewStatus.IN_PROGRESS.value:
+                    raise InterviewConflictError("interview report is not available")
+            except SQLAlchemyError as exc:
+                db.rollback()
+                raise DatabaseServiceError("database service unavailable") from exc
+
+    def _saved_report(self, session_id: str) -> InterviewReportResponse | None:
+        with self.session_factory() as db:
+            try:
+                interview = InterviewRepository(db).get(session_id)
+                if interview is None:
+                    raise InterviewNotFoundError("interview session not found")
+                reports = ReportRepository(db)
+                report = reports.get_for_session(session_id)
+                if report is None:
+                    return None
+                results = AnswerRepository(db).results_for_session(session_id)
+                return self._report_response(reports.to_schema(report), results)
             except SQLAlchemyError as exc:
                 db.rollback()
                 raise DatabaseServiceError("database service unavailable") from exc
@@ -301,6 +396,28 @@ class InterviewService:
             except SQLAlchemyError as exc:
                 db.rollback()
                 raise DatabaseServiceError("database service unavailable") from exc
+
+    def _fail_session_and_release_claim(
+        self, session_id: str, resource_key: str
+    ) -> None:
+        with self.session_factory() as db:
+            try:
+                interview = InterviewRepository(db).get(session_id)
+                if interview is not None:
+                    current = InterviewStatus(interview.status)
+                    if can_transition(current, InterviewStatus.FAILED):
+                        interview.status = InterviewStatus.FAILED.value
+                OperationClaimRepository(db).release(resource_key)
+                db.commit()
+            except SQLAlchemyError as exc:
+                db.rollback()
+                raise DatabaseServiceError("database service unavailable") from exc
+
+    @staticmethod
+    def _report_response(
+        report: InterviewReport, results: list[ReportResult]
+    ) -> InterviewReportResponse:
+        return InterviewReportResponse(**report.model_dump(), results=results)
 
     def _search_context(
         self,

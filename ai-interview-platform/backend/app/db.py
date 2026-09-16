@@ -36,6 +36,12 @@ def init_db(engine: Engine) -> None:
         "uq_answers_question_id",
         ("question_id",),
     )
+    _ensure_unique_index(
+        engine,
+        "reports",
+        "uq_reports_session_id",
+        ("session_id",),
+    )
 
 
 def _ensure_unique_index(

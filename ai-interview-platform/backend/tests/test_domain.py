@@ -43,6 +43,9 @@ def test_init_db_adds_uniqueness_to_existing_interview_tables():
         connection.exec_driver_sql(
             "CREATE TABLE answers (id TEXT PRIMARY KEY, question_id TEXT NOT NULL)"
         )
+        connection.exec_driver_sql(
+            "CREATE TABLE reports (id TEXT PRIMARY KEY, session_id TEXT NOT NULL)"
+        )
 
     init_db(engine)
 
@@ -64,4 +67,13 @@ def test_init_db_adds_uniqueness_to_existing_interview_tables():
         with pytest.raises(IntegrityError):
             connection.exec_driver_sql(
                 "INSERT INTO answers (id, question_id) VALUES ('a2', 'q1')"
+            )
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO reports (id, session_id) VALUES ('r1', 'session-1')"
+        )
+        with pytest.raises(IntegrityError):
+            connection.exec_driver_sql(
+                "INSERT INTO reports (id, session_id) VALUES ('r2', 'session-1')"
             )

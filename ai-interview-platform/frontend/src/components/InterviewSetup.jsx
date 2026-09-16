@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function InterviewSetup({ onStart, loading }) {
+export default function InterviewSetup({ onStart, loading, history = [], historyLoading = false, onOpenHistory }) {
   const [jobDescription, setJobDescription] = useState("");
   const [resume, setResume] = useState(null);
 
@@ -32,6 +32,17 @@ export default function InterviewSetup({ onStart, loading }) {
         {resume && <span className="file-name">已选择：{resume.name}</span>}
         <button type="submit" disabled={loading}>{loading ? "准备中…" : "开始面试"}</button>
       </form>
+      <div className="history-section">
+        <h2>历史面试</h2>
+        {historyLoading && <p>正在加载历史记录…</p>}
+        {!historyLoading && history.length === 0 && <p className="history-empty">暂无历史面试</p>}
+        {history.length > 0 && <ul className="history-list">
+          {history.map((item) => <li key={item.id}>
+            <div><strong>{item.job_title || "未命名岗位"}</strong><span>{item.status || "状态未知"}</span></div>
+            <button type="button" className="secondary" onClick={() => onOpenHistory?.(item.id)} disabled={loading}>查看报告</button>
+          </li>)}
+        </ul>}
+      </div>
     </section>
   );
 }

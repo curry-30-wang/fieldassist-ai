@@ -27,6 +27,17 @@ def test_score_breakdown_rejects_score_outside_zero_to_ten():
         ScoreBreakdown(accuracy=11, completeness=6, relevance=7, clarity=8)
 
 
+@pytest.mark.parametrize("invalid_score", [-1, 11, float("nan"), float("inf"), float("-inf")])
+def test_interview_report_rejects_non_finite_or_out_of_range_total(invalid_score):
+    with pytest.raises(ValidationError):
+        InterviewReport(
+            total_score=invalid_score,
+            summary="Invalid total",
+            weaknesses=[],
+            recommendations=[],
+        )
+
+
 def test_response_schemas_validate_nested_interview_output():
     question = GeneratedQuestion(
         question_text="How would you design an API?",

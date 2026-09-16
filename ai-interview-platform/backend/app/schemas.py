@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, computed_field
 
 
 class ResponseSchema(BaseModel):
@@ -30,6 +30,7 @@ class ScoreBreakdown(ResponseSchema):
     relevance: float = Field(ge=0, le=10)
     clarity: float = Field(ge=0, le=10)
 
+    @computed_field
     @property
     def total_score(self) -> float:
         return round(
@@ -47,7 +48,27 @@ class AnswerEvaluation(ResponseSchema):
 
 
 class InterviewReport(ResponseSchema):
-    total_score: float
+    total_score: FiniteFloat = Field(ge=0, le=10)
     summary: str
     weaknesses: list[str]
     recommendations: list[str]
+
+
+class ReportQuestion(ResponseSchema):
+    id: str
+    question_text: str
+    question_type: str
+    difficulty: str
+    focus_points: list[str]
+    reference_direction: str
+    order_index: int
+
+
+class ReportResult(ResponseSchema):
+    question: ReportQuestion
+    answer_text: str
+    evaluation: AnswerEvaluation
+
+
+class InterviewReportResponse(InterviewReport):
+    results: list[ReportResult]

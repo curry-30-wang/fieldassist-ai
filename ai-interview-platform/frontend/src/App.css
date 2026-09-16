@@ -6,6 +6,13 @@ body { margin: 0; min-width: 320px; }
 .status-dot { color: #0f766e; }
 .card { background: white; border: 1px solid #e2e8f0; border-radius: 20px; padding: clamp(24px, 5vw, 52px); box-shadow: 0 18px 40px #0f172a0c; }
 .setup-card { max-width: 680px; margin: 50px auto; }
+.history-section { margin-top: 40px; border-top: 1px solid #e2e8f0; }
+.history-empty { color: #64748b; }
+.history-list { list-style: none; padding: 0; }
+.history-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid #e2e8f0; }
+.history-list li div { display: grid; gap: 4px; }
+.history-list li span { color: #64748b; font-size: 13px; }
+.history-list button { margin-top: 0; flex: 0 0 auto; }
 .eyebrow { color: #2563eb; font-size: 12px; font-weight: 700; letter-spacing: .16em; }
 h1 { margin: 8px 0; font-size: clamp(28px, 5vw, 42px); color: #0f172a; }
 h2 { margin-top: 30px; color: #0f172a; line-height: 1.5; }

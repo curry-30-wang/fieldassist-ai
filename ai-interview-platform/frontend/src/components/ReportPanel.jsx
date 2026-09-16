@@ -1,6 +1,6 @@
-export default function ReportPanel({ report, results, onRestart }) {
+export default function ReportPanel({ report, onRestart }) {
   const safeReport = report || {};
-  const safeResults = Array.isArray(results) ? results : [];
+  const safeResults = Array.isArray(safeReport.results) ? safeReport.results : [];
   const list = (items) => Array.isArray(items) && items.length ? items.join("、") : "暂无";
 
   return <section className="card report-card">
@@ -21,6 +21,7 @@ export default function ReportPanel({ report, results, onRestart }) {
           <span>相关性：{score.relevance ?? "暂无"} / 10</span>
           <span>表达清晰度：{score.clarity ?? "暂无"} / 10</span>
         </div>
+        <p><strong>你的回答：</strong>{item?.answer_text || "暂无"}</p>
         <p><strong>优点：</strong>{list(evaluation.strengths)}</p>
         <p><strong>问题：</strong>{list(evaluation.problems)}</p>
         <p><strong>改进建议：</strong>{list(evaluation.suggestions)}</p>
