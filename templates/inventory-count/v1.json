@@ -1,0 +1,131 @@
+{
+  "id": "inventory-count",
+  "name": "原材料库存盘点表",
+  "category": "库存管理",
+  "version": 1,
+  "archivePrefix": "PD",
+  "fields": [
+    {
+      "key": "date",
+      "label": "盘点日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "materialType",
+      "label": "材料类别",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "沥青",
+        "碎石",
+        "砂",
+        "矿粉",
+        "添加剂"
+      ],
+      "isSearchable": true
+    },
+    {
+      "key": "specification",
+      "label": "规格",
+      "dataType": "text",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "bookQuantity",
+      "isSummable": true,
+      "label": "账面数量",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "actualQuantity",
+      "isSummable": true,
+      "label": "实盘数量",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "variance",
+      "isSummable": true,
+      "label": "盘盈盘亏",
+      "dataType": "decimal"
+    },
+    {
+      "key": "counter",
+      "label": "盘点人",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "approvalStatus",
+      "label": "审核状态",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "待审核",
+        "已审核",
+        "已调整"
+      ]
+    },
+    {
+      "key": "unitPrice",
+      "label": "单价",
+      "dataType": "decimal"
+    },
+    {
+      "key": "profitLossAmountRaw",
+      "isSummable": true,
+      "label": "盈亏金额原值",
+      "dataType": "decimal"
+    },
+    {
+      "key": "profitLossAmount",
+      "isSummable": true,
+      "label": "盈亏金额",
+      "dataType": "decimal"
+    },
+    {
+      "key": "handlingOpinion",
+      "label": "处理意见",
+      "dataType": "text"
+    }
+  ],
+  "formulas": [
+    {
+      "target": "variance",
+      "operator": "subtract",
+      "operands": [
+        "actualQuantity",
+        "bookQuantity"
+      ]
+    },
+    {
+      "target": "profitLossAmountRaw",
+      "operator": "multiply",
+      "operands": [
+        "variance",
+        "unitPrice"
+      ]
+    },
+    {
+      "target": "profitLossAmount",
+      "operator": "round",
+      "operands": [
+        "profitLossAmountRaw"
+      ],
+      "decimalPlaces": 2
+    }
+  ],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Portrait"
+  },
+  "searchFields": [
+    "date",
+    "materialType",
+    "specification"
+  ]
+}

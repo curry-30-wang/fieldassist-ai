@@ -1,0 +1,175 @@
+{
+  "id": "customer-reconciliation",
+  "name": "客户/工程对账单",
+  "category": "销售结算",
+  "version": 1,
+  "archivePrefix": "DZ",
+  "fields": [
+    {
+      "key": "date",
+      "label": "日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "customer",
+      "label": "客户",
+      "dataType": "text",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "projectPart",
+      "label": "工程部位",
+      "dataType": "text",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "specification",
+      "label": "规格",
+      "dataType": "text",
+      "required": true,
+      "options": [
+        "AC-13",
+        "AC-16",
+        "AC-20",
+        "SMA-13"
+      ]
+    },
+    {
+      "key": "vehicleCount",
+      "isSummable": true,
+      "label": "车数",
+      "dataType": "integer",
+      "required": true
+    },
+    {
+      "key": "quantity",
+      "isSummable": true,
+      "label": "数量",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "unitPrice",
+      "label": "单价",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "materialAmountRaw",
+      "isSummable": true,
+      "label": "材料金额原值",
+      "dataType": "decimal"
+    },
+    {
+      "key": "materialAmount",
+      "isSummable": true,
+      "label": "材料金额",
+      "dataType": "decimal"
+    },
+    {
+      "key": "oilFee",
+      "isSummable": true,
+      "label": "油费",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "freightFee",
+      "isSummable": true,
+      "label": "运费",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "supplyTotal",
+      "isSummable": true,
+      "label": "供货总额",
+      "dataType": "decimal"
+    },
+    {
+      "key": "payment",
+      "isSummable": true,
+      "label": "回款",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "openingReceivable",
+      "label": "上期欠款",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "receivable",
+      "label": "累计欠款",
+      "dataType": "decimal"
+    },
+    {
+      "key": "reconciliationResult",
+      "label": "对账结果",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "待确认",
+        "已确认",
+        "有差异"
+      ]
+    }
+  ],
+  "formulas": [
+    {
+      "target": "materialAmountRaw",
+      "operator": "multiply",
+      "operands": [
+        "quantity",
+        "unitPrice"
+      ]
+    },
+    {
+      "target": "materialAmount",
+      "operator": "round",
+      "operands": [
+        "materialAmountRaw"
+      ],
+      "decimalPlaces": 2
+    },
+    {
+      "target": "supplyTotal",
+      "operator": "add",
+      "operands": [
+        "materialAmount",
+        "oilFee",
+        "freightFee"
+      ]
+    },
+    {
+      "target": "receivable",
+      "operator": "add",
+      "operands": [
+        "openingReceivable",
+        "supplyTotal"
+      ]
+    },
+    {
+      "target": "receivable",
+      "operator": "subtract",
+      "operands": [
+        "receivable",
+        "payment"
+      ]
+    }
+  ],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Landscape"
+  },
+  "searchFields": [
+    "date",
+    "customer",
+    "projectPart"
+  ]
+}

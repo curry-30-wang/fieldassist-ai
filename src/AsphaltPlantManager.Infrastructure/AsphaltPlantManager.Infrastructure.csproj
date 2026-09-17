@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
+    <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
+    <ProjectReference Include="..\AsphaltPlantManager.Core\AsphaltPlantManager.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Database\Migrations\001_initial.sql" />
+    <EmbeddedResource Include="Database\Migrations\002_customer_receivables.sql" />
+  </ItemGroup>
+</Project>

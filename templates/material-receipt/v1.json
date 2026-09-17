@@ -1,0 +1,152 @@
+{
+  "id": "material-receipt",
+  "name": "原材料入库单",
+  "category": "采购库存",
+  "version": 1,
+  "archivePrefix": "YR",
+  "fields": [
+    {
+      "key": "date",
+      "label": "日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "supplier",
+      "label": "供应商",
+      "dataType": "text",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "materialType",
+      "label": "材料类别",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "沥青",
+        "碎石",
+        "砂",
+        "矿粉",
+        "添加剂"
+      ],
+      "isSearchable": true
+    },
+    {
+      "key": "specification",
+      "label": "规格",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "quantity",
+      "isSummable": true,
+      "label": "数量",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "unitPrice",
+      "label": "单价",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "amountRaw",
+      "isSummable": true,
+      "label": "金额原值",
+      "dataType": "decimal"
+    },
+    {
+      "key": "amount",
+      "isSummable": true,
+      "label": "金额",
+      "dataType": "decimal"
+    },
+    {
+      "key": "warehouse",
+      "label": "仓库",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "沥青罐区",
+        "骨料仓",
+        "粉料仓",
+        "外加剂库"
+      ]
+    },
+    {
+      "key": "acceptanceStatus",
+      "label": "验收状态",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "合格",
+        "待检",
+        "不合格"
+      ]
+    },
+    {
+      "key": "vehiclePlate",
+      "label": "车号",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "grossWeight",
+      "isSummable": true,
+      "label": "毛重",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "tareWeight",
+      "isSummable": true,
+      "label": "皮重",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "netWeight",
+      "isSummable": true,
+      "label": "净重",
+      "dataType": "decimal"
+    }
+  ],
+  "formulas": [
+    {
+      "target": "netWeight",
+      "operator": "subtract",
+      "operands": [
+        "grossWeight",
+        "tareWeight"
+      ]
+    },
+    {
+      "target": "amountRaw",
+      "operator": "multiply",
+      "operands": [
+        "quantity",
+        "unitPrice"
+      ]
+    },
+    {
+      "target": "amount",
+      "operator": "round",
+      "operands": [
+        "amountRaw"
+      ],
+      "decimalPlaces": 2
+    }
+  ],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Landscape"
+  },
+  "searchFields": [
+    "date",
+    "supplier",
+    "materialType"
+  ]
+}

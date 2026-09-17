@@ -1,1 +1,0 @@
-"""FieldAssist application package."""

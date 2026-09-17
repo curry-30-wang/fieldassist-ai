@@ -1,0 +1,124 @@
+{
+  "id": "quality-inspection",
+  "name": "质量检验记录",
+  "category": "质量管理",
+  "version": 1,
+  "archivePrefix": "ZJ",
+  "fields": [
+    {
+      "key": "date",
+      "label": "检验日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "mixType",
+      "label": "混合料类型",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "AC",
+        "SMA",
+        "OGFC"
+      ],
+      "isSearchable": true
+    },
+    {
+      "key": "specification",
+      "label": "规格",
+      "dataType": "text",
+      "required": true,
+      "options": [
+        "AC-13",
+        "AC-16",
+        "AC-20",
+        "SMA-13"
+      ],
+      "isSearchable": true
+    },
+    {
+      "key": "sampleLocation",
+      "label": "取样位置",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "asphaltContent",
+      "label": "油石比",
+      "dataType": "decimal"
+    },
+    {
+      "key": "gradationResult",
+      "label": "级配结果",
+      "dataType": "text"
+    },
+    {
+      "key": "density",
+      "label": "压实密度",
+      "dataType": "decimal"
+    },
+    {
+      "key": "inspectionResult",
+      "label": "检验结果",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "合格",
+        "复检",
+        "不合格"
+      ]
+    },
+    {
+      "key": "inspector",
+      "label": "检验员",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "sampleBatch",
+      "label": "取样批次",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "testItem",
+      "label": "检测项目",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "standardValue",
+      "label": "标准值",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "measuredValue",
+      "label": "实测值",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "conclusion",
+      "label": "结论",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "符合标准",
+        "不符合标准",
+        "待复检"
+      ]
+    }
+  ],
+  "formulas": [],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Portrait"
+  },
+  "searchFields": [
+    "date",
+    "mixType",
+    "specification"
+  ]
+}

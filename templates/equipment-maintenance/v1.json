@@ -1,0 +1,109 @@
+{
+  "id": "equipment-maintenance",
+  "name": "设备运行与维修记录",
+  "category": "设备管理",
+  "version": 1,
+  "archivePrefix": "SB",
+  "fields": [
+    {
+      "key": "date",
+      "label": "日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "equipmentName",
+      "label": "设备名称",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "拌合主机",
+        "沥青泵",
+        "振动筛",
+        "装载机",
+        "发电机"
+      ],
+      "isSearchable": true
+    },
+    {
+      "key": "equipmentNo",
+      "label": "设备编号",
+      "dataType": "text",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "runtimeHours",
+      "isSummable": true,
+      "label": "运行小时",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "maintenanceType",
+      "label": "维修类型",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "保养",
+        "故障维修",
+        "巡检"
+      ]
+    },
+    {
+      "key": "faultDescription",
+      "label": "故障描述",
+      "dataType": "text"
+    },
+    {
+      "key": "maintenanceCost",
+      "isSummable": true,
+      "label": "维修费用",
+      "dataType": "decimal"
+    },
+    {
+      "key": "status",
+      "label": "设备状态",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "正常",
+        "停用",
+        "待维修"
+      ]
+    },
+    {
+      "key": "technician",
+      "label": "维修人",
+      "dataType": "text"
+    },
+    {
+      "key": "maintenanceContent",
+      "label": "维修内容",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "partsCost",
+      "isSummable": true,
+      "label": "配件费用",
+      "dataType": "decimal"
+    },
+    {
+      "key": "nextMaintenanceDate",
+      "label": "下次保养日期",
+      "dataType": "date"
+    }
+  ],
+  "formulas": [],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Portrait"
+  },
+  "searchFields": [
+    "date",
+    "equipmentName",
+    "equipmentNo"
+  ]
+}

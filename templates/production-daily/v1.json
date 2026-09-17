@@ -1,0 +1,134 @@
+{
+  "id": "production-daily",
+  "name": "沥青混合料生产日报",
+  "category": "生产管理",
+  "version": 1,
+  "archivePrefix": "SC",
+  "fields": [
+    {
+      "key": "date",
+      "label": "日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "mixType",
+      "label": "混合料类型",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "AC",
+        "SMA",
+        "OGFC"
+      ],
+      "isSearchable": true
+    },
+    {
+      "key": "specification",
+      "label": "规格",
+      "dataType": "text",
+      "required": true,
+      "options": [
+        "AC-13",
+        "AC-16",
+        "AC-20",
+        "SMA-13"
+      ]
+    },
+    {
+      "key": "planOutput",
+      "isSummable": true,
+      "label": "计划产量",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "actualProduction",
+      "isSummable": true,
+      "label": "实际产量",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "productionHours",
+      "isSummable": true,
+      "label": "生产时长",
+      "dataType": "decimal"
+    },
+    {
+      "key": "operator",
+      "label": "操作员",
+      "dataType": "text"
+    },
+    {
+      "key": "operatingStatus",
+      "label": "运行状态",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "正常",
+        "停机",
+        "检修"
+      ]
+    },
+    {
+      "key": "remark",
+      "label": "备注",
+      "dataType": "text"
+    },
+    {
+      "key": "shift",
+      "label": "班次",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "白班",
+        "夜班"
+      ]
+    },
+    {
+      "key": "mixRatio",
+      "label": "配合比",
+      "dataType": "decimal"
+    },
+    {
+      "key": "ac13Production",
+      "isSummable": true,
+      "label": "AC-13产量",
+      "dataType": "decimal"
+    },
+    {
+      "key": "ac16Production",
+      "isSummable": true,
+      "label": "AC-16产量",
+      "dataType": "decimal"
+    },
+    {
+      "key": "ac20Production",
+      "isSummable": true,
+      "label": "AC-20产量",
+      "dataType": "decimal"
+    },
+    {
+      "key": "sma13Production",
+      "isSummable": true,
+      "label": "SMA-13产量",
+      "dataType": "decimal"
+    },
+    {
+      "key": "downtimeReason",
+      "label": "停机原因",
+      "dataType": "text"
+    }
+  ],
+  "formulas": [],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Landscape"
+  },
+  "searchFields": [
+    "date",
+    "mixType"
+  ]
+}

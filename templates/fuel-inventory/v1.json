@@ -1,0 +1,137 @@
+{
+  "id": "fuel-inventory",
+  "name": "燃油购耗存明细",
+  "category": "能源管理",
+  "version": 1,
+  "archivePrefix": "RYC",
+  "fields": [
+    {
+      "key": "date",
+      "label": "日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "fuelType",
+      "label": "燃油类型",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "柴油",
+        "重油",
+        "天然气"
+      ],
+      "isSearchable": true
+    },
+    {
+      "key": "supplier",
+      "label": "供应商",
+      "dataType": "text",
+      "isSearchable": true
+    },
+    {
+      "key": "opening",
+      "label": "期初结存",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "unit",
+      "label": "计量单位",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "L",
+        "kg",
+        "m³"
+      ]
+    },
+    {
+      "key": "dieselPurchase",
+      "isSummable": true,
+      "label": "柴油购入",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "issueTarget",
+      "label": "设备/车辆领用对象",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "issueQuantity",
+      "isSummable": true,
+      "label": "领用数量",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "unitPrice",
+      "label": "单价",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "amountRaw",
+      "isSummable": true,
+      "label": "金额原值",
+      "dataType": "decimal"
+    },
+    {
+      "key": "amount",
+      "isSummable": true,
+      "label": "金额",
+      "dataType": "decimal"
+    },
+    {
+      "key": "inventory",
+      "label": "库存",
+      "dataType": "decimal"
+    }
+  ],
+  "formulas": [
+    {
+      "target": "amountRaw",
+      "operator": "multiply",
+      "operands": [
+        "dieselPurchase",
+        "unitPrice"
+      ]
+    },
+    {
+      "target": "amount",
+      "operator": "round",
+      "operands": [
+        "amountRaw"
+      ],
+      "decimalPlaces": 2
+    },
+    {
+      "target": "inventory",
+      "operator": "add",
+      "operands": [
+        "opening",
+        "dieselPurchase"
+      ]
+    },
+    {
+      "target": "inventory",
+      "operator": "subtract",
+      "operands": [
+        "inventory",
+        "issueQuantity"
+      ]
+    }
+  ],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Portrait"
+  },
+  "searchFields": [
+    "date",
+    "fuelType",
+    "supplier"
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "id": "safety-inspection",
+  "name": "安全巡检记录",
+  "category": "安全管理",
+  "version": 1,
+  "archivePrefix": "AQ",
+  "fields": [
+    {
+      "key": "date",
+      "label": "巡检日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "area",
+      "label": "巡检区域",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "拌合楼",
+        "沥青罐区",
+        "骨料堆场",
+        "配电室",
+        "办公区"
+      ],
+      "isSearchable": true
+    },
+    {
+      "key": "inspector",
+      "label": "巡检人",
+      "dataType": "text",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "inspectionItem",
+      "label": "巡检项目",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "issueDescription",
+      "label": "隐患描述",
+      "dataType": "text"
+    },
+    {
+      "key": "riskLevel",
+      "label": "风险等级",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "低",
+        "中",
+        "高"
+      ]
+    },
+    {
+      "key": "rectificationDeadline",
+      "label": "整改期限",
+      "dataType": "date"
+    },
+    {
+      "key": "rectificationStatus",
+      "label": "整改状态",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "无需整改",
+        "待整改",
+        "整改中",
+        "已完成"
+      ]
+    },
+    {
+      "key": "remark",
+      "label": "备注",
+      "dataType": "text"
+    },
+    {
+      "key": "responsiblePerson",
+      "label": "负责人",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "reviewResult",
+      "label": "复查结果",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "待复查",
+        "复查合格",
+        "复查不合格"
+      ]
+    }
+  ],
+  "formulas": [],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Portrait"
+  },
+  "searchFields": [
+    "date",
+    "area",
+    "inspector"
+  ]
+}

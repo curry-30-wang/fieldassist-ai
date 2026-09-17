@@ -1,0 +1,90 @@
+{
+  "id": "asphalt-inventory",
+  "name": "沥青购耗存明细表",
+  "category": "库存管理",
+  "version": 1,
+  "archivePrefix": "GHC",
+  "fields": [
+    {
+      "key": "date",
+      "label": "日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "specification",
+      "label": "规格",
+      "dataType": "text",
+      "required": true,
+      "options": [
+        "70#沥青",
+        "90#沥青",
+        "SBS改性沥青"
+      ],
+      "isSearchable": true
+    },
+    {
+      "key": "opening",
+      "label": "上期结存",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "purchase",
+      "isSummable": true,
+      "label": "本日购进",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "ratio",
+      "label": "配合比",
+      "dataType": "decimal"
+    },
+    {
+      "key": "production",
+      "isSummable": true,
+      "label": "产量",
+      "dataType": "decimal"
+    },
+    {
+      "key": "consumption",
+      "isSummable": true,
+      "label": "当日消耗",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "closing",
+      "label": "当日结存",
+      "dataType": "decimal"
+    }
+  ],
+  "formulas": [
+    {
+      "target": "closing",
+      "operator": "add",
+      "operands": [
+        "opening",
+        "purchase"
+      ]
+    },
+    {
+      "target": "closing",
+      "operator": "subtract",
+      "operands": [
+        "closing",
+        "consumption"
+      ]
+    }
+  ],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Portrait"
+  },
+  "searchFields": [
+    "date",
+    "specification"
+  ]
+}

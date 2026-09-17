@@ -1,0 +1,118 @@
+{
+  "id": "transport-settlement",
+  "name": "车辆运输结算表",
+  "category": "运输结算",
+  "version": 1,
+  "archivePrefix": "YS",
+  "fields": [
+    {
+      "key": "date",
+      "label": "日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "carrier",
+      "label": "承运单位",
+      "dataType": "text",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "vehiclePlate",
+      "label": "车牌号",
+      "dataType": "text",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "driver",
+      "label": "司机",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "route",
+      "label": "运输路线",
+      "dataType": "text",
+      "required": true
+    },
+    {
+      "key": "quantity",
+      "isSummable": true,
+      "label": "运输数量",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "distance",
+      "label": "运输距离",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "unitFreight",
+      "label": "运价",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "freightRaw",
+      "isSummable": true,
+      "label": "运费原值",
+      "dataType": "decimal"
+    },
+    {
+      "key": "freightAmount",
+      "isSummable": true,
+      "label": "运输费用",
+      "dataType": "decimal"
+    },
+    {
+      "key": "settlementStatus",
+      "label": "结算状态",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "待结算",
+        "已结算",
+        "已付款"
+      ]
+    },
+    {
+      "key": "tripCount",
+      "isSummable": true,
+      "label": "趟数",
+      "dataType": "integer",
+      "required": true
+    }
+  ],
+  "formulas": [
+    {
+      "target": "freightRaw",
+      "operator": "multiply",
+      "operands": [
+        "quantity",
+        "unitFreight"
+      ]
+    },
+    {
+      "target": "freightAmount",
+      "operator": "round",
+      "operands": [
+        "freightRaw"
+      ],
+      "decimalPlaces": 2
+    }
+  ],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Landscape"
+  },
+  "searchFields": [
+    "date",
+    "carrier",
+    "vehiclePlate"
+  ]
+}

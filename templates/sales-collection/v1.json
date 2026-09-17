@@ -1,0 +1,143 @@
+{
+  "id": "sales-collection",
+  "name": "销售与回款明细",
+  "category": "销售结算",
+  "version": 1,
+  "archivePrefix": "XS",
+  "fields": [
+    {
+      "key": "date",
+      "label": "日期",
+      "dataType": "date",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "customer",
+      "label": "客户",
+      "dataType": "text",
+      "required": true,
+      "isSearchable": true
+    },
+    {
+      "key": "contractNo",
+      "label": "合同编号",
+      "dataType": "text",
+      "isSearchable": true
+    },
+    {
+      "key": "openingReceivable",
+      "label": "期初应收",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "newSales",
+      "isSummable": true,
+      "label": "本期销售额",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "collection",
+      "isSummable": true,
+      "label": "本期回款",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "closingReceivable",
+      "label": "期末应收",
+      "dataType": "decimal"
+    },
+    {
+      "key": "collectionMethod",
+      "label": "回款方式",
+      "dataType": "select",
+      "required": true,
+      "options": [
+        "银行转账",
+        "现金",
+        "承兑汇票",
+        "其他"
+      ]
+    },
+    {
+      "key": "remark",
+      "label": "备注",
+      "dataType": "text"
+    },
+    {
+      "key": "contractAmount",
+      "isSummable": true,
+      "label": "合同金额",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "cumulativeSupply",
+      "isSummable": true,
+      "label": "累计供货",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "receivedPayment",
+      "isSummable": true,
+      "label": "已回款",
+      "dataType": "decimal",
+      "required": true
+    },
+    {
+      "key": "unpaidPayment",
+      "isSummable": true,
+      "label": "未回款",
+      "dataType": "decimal"
+    },
+    {
+      "key": "accountAge",
+      "label": "账龄（天）",
+      "dataType": "integer"
+    },
+    {
+      "key": "agreedPaymentDate",
+      "label": "约定付款日期",
+      "dataType": "date"
+    }
+  ],
+  "formulas": [
+    {
+      "target": "closingReceivable",
+      "operator": "add",
+      "operands": [
+        "openingReceivable",
+        "newSales"
+      ]
+    },
+    {
+      "target": "closingReceivable",
+      "operator": "subtract",
+      "operands": [
+        "closingReceivable",
+        "collection"
+      ]
+    },
+    {
+      "target": "unpaidPayment",
+      "operator": "subtract",
+      "operands": [
+        "cumulativeSupply",
+        "receivedPayment"
+      ]
+    }
+  ],
+  "printLayout": {
+    "paper": "A4",
+    "orientation": "Landscape"
+  },
+  "searchFields": [
+    "date",
+    "customer",
+    "contractNo"
+  ]
+}
