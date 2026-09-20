@@ -57,12 +57,6 @@ flowchart LR
 
 这些结果用于本地交付验证；项目没有把 Mock 数据、论文中的预期指标或未部署的外部服务写成生产成果。
 
-## 相关作品：办公室数据与统计工具
-
-在驻马店市公路工程开发有限公司担任办公室文职期间，我根据日常表格制作和信息统计需求完成了一套办公辅助软件，用于集中处理重复的表格整理和信息汇总工作。这个作品体现了从实际工作问题出发、梳理需求并交付可用工具的能力。
-
-安装包体积较大，未放入 Git 历史，而是作为 GitHub Release 资产发布；项目说明、文件校验值和下载入口见 [`portfolio/README.md`](portfolio/README.md)。
-
 ## 3 分钟启动 Mock 模式
 
 需要 Python 3.10+。在项目根目录执行：
@@ -133,5 +127,6 @@ docs/              架构、接口、演示、运行手册和简历素材
 - [3–5 分钟演示脚本](docs/demo-script.md)
 - [运行手册](docs/runbook.md)
 - [简历素材](docs/resume.md)
-- [办公室数据统计工具](portfolio/README.md)
+- [AI 智能面试平台](https://github.com/curry-30-wang/ai-interview-platform)
+- [.NET 办公数据工具](https://github.com/curry-30-wang/asphalt-plant-manager)
 - [n8n 后续扩展](docs/n8n-extension.md)
