@@ -86,7 +86,7 @@ LANGFUSE_PUBLIC_KEY=
 LANGFUSE_SECRET_KEY=
 LANGFUSE_BASE_URL=https://cloud.langfuse.com
 REQUEST_TIMEOUT_SECONDS=15
-DEMO_ADMIN_PASSWORD=admin123
+DEMO_ADMIN_PASSWORD=replace-with-a-local-demo-password
 ~~~
 
 - [ ] **Step 4: Implement the application factory and static serving**

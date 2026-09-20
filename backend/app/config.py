@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     langfuse_secret_key: str = ""
     langfuse_base_url: str = "https://cloud.langfuse.com"
     request_timeout_seconds: int = 15
-    demo_admin_password: str = "admin123"
+    demo_admin_password: str = "replace-with-a-local-demo-password"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

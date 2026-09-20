@@ -33,6 +33,22 @@ def test_readme_documents_reproducible_mock_and_real_setup() -> None:
         assert required_text in readme
 
 
+def test_public_demo_password_is_only_a_local_placeholder() -> None:
+    public_files = (
+        read_project_file(".env.example"),
+        read_project_file("README.md"),
+        read_project_file("backend/app/config.py"),
+        read_project_file("frontend/app.js"),
+        read_project_file("docs/superpowers/plans/2026-09-07-fieldassist-implementation-plan.md"),
+        read_project_file("docs/superpowers/plans/2026-09-12-fieldassist-portfolio-polish.md"),
+    )
+
+    forbidden_password = "admin" + "123"
+    assert all(forbidden_password not in content for content in public_files)
+    assert "DEMO_ADMIN_PASSWORD=replace-with-a-local-demo-password" in public_files[0]
+    assert "replace-with-a-local-demo-password" in public_files[2]
+
+
 def test_handoff_docs_cover_integrations_and_safe_secret_boundary() -> None:
     for relative_path in (
         "docs/architecture.md",

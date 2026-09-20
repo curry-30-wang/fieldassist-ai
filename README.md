@@ -74,7 +74,7 @@ python -m venv .venv
 
 - 员工：`employee@fieldassist.local`
 - 管理员：`admin@fieldassist.local`
-- 默认演示密码：`admin123`，也可以用 `DEMO_ADMIN_PASSWORD` 覆盖
+- 演示密码请在本机 `.env` 中通过 `DEMO_ADMIN_PASSWORD` 设置；示例文件中的值只是占位符，禁止提交真实密码
 
 若本机不能访问 Vue CDN，可将 Vue 3 浏览器构建文件放入 `frontend/vendor/`，再把 `frontend/index.html` 中的 CDN 地址替换为本地文件；项目本身不需要 Node.js、Vite 或打包步骤。
 

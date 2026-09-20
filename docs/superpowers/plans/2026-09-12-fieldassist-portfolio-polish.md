@@ -45,8 +45,8 @@ Expected: the application listens on `http://127.0.0.1:8000`.
 Use only the documented local demo accounts:
 
 ```text
-employee@fieldassist.local / admin123
-admin@fieldassist.local / admin123
+employee@fieldassist.local / 由本机 DEMO_ADMIN_PASSWORD 配置
+admin@fieldassist.local / 由本机 DEMO_ADMIN_PASSWORD 配置
 ```
 
 - [ ] **Step 3: Capture the three named pages**
